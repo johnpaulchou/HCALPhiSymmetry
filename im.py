@@ -5,6 +5,8 @@ import itertools
 import array as ar
 import argparse
 import sys
+import scipy.optimize as spo
+import scipy.integrate as integrate
 
 # detector geometry and magic numbers
 subdets = [ "HB", "HE", "HF" ]
@@ -39,6 +41,8 @@ def getHist(rootfile, subdet, ieta, iphi, depth, checkGoodChannel=True):
         return None
     else:
         hist.SetDirectory(0)
+        # REBIN THE HF histograms here
+        if subdet=="HF": hist.Rebin(5)
         return hist    
     ### end getHist()
 
@@ -95,21 +99,46 @@ def testGoodChannel(inputfilename):
                         print("Hist found for "+subdet+" "+str(ieta)+" "+str(iphi)+" "+str(depth))
     ### end testGoodChannel()
 
+# defines the function to minimize
+class minimizeFunc:
+    def __init__(self, spline, mean, lo, hi):
+        self.spline = spline
+        self.mean = mean
+        self.lo = lo
+        self.hi = hi
+        
+    def splineF(self, x):
+        return self.spline.Eval(x)
+
+    def splineMeanF(self, x, corr):
+        return x*corr*self.spline.Eval(x)
+    
+    def minimizer(self,corr):
+        # integrate from the new bounds
+        splineIntegral = integrate.quad(self.splineF,self.lo/corr[0],self.hi/corr[0])
+        splineMean = integrate.quad(self.splineMeanF,self.lo/corr[0],self.hi/corr[0],args=(corr[0]))
+
+        # compute the mean and return the difference with the target mean squared
+        return (splineMean[0]/splineIntegral[0] - self.mean)**2
+
+    def minimize(self):
+        result = spo.minimize(self.minimizer, 1.0, bounds=[(0.10,3.)],tol=1e-3,method="Nelder-Mead")
+        if result.success:
+            return result.x[0]
+        else:
+            return -1.
+
 ### define the main function
 def main():
     # setup parser
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("inputfilename", help="name of .root file containing the histograms to be processed")
     parser.add_argument("subdetector", help="select the subdetector (HB, HE, HF, or all)", choices = ["HB","HE","HF","all"])
-    parser.add_argument("-i","--iterations", help="set the number of iterations",type=int, default=10)
     parser.add_argument("--corrWarn", help="print a warning if the correction deviates from 1.0 by this amount",type=float, default=0.25)
-    parser.add_argument("--corrErrWarn", help="print a warning if the relative uncertainty on a correction is greater than this amount",type=float,default=0.08)
-    parser.add_argument("--corrPullWarn", help="print a warning if the pull on a correction is greater than this amount",type=float,default=4.0)
     parser.add_argument("--suppressHE29", help="suppress warnings about HE |ieta|=29", action='store_true')
     args=parser.parse_args()
 
     # iterations and filenames
-    niterations = args.iterations
     inputfilename = args.inputfilename
     outputtxtfilename = "corrs_"+args.subdetector+".txt"
     outputhistfilename = "hists_"+args.subdetector+".root"
@@ -122,22 +151,14 @@ def main():
         print("Error: Unable to open file "+inputfilename+".")
         exit(1)
 
-    
+        
     # create some histograms to store the corrections
     hCorrs = [None] * 7
-    hCorrErrs = [None] * 7
     for depth in range(7):
         hCorr = ROOT.TH2D("hCorr"+str(depth+1),"Corrections for depth "+str(depth+1),83,-41.5,41.5,72,0.5,72.5)
-        hCorrErr = ROOT.TH2D("hCorrErr"+str(depth+1),"Rel. Error for depth "+str(depth+1),83,-41.5,41.5,72,0.5,72.5)
         hCorr.SetDirectory(0)
-        hCorrErr.SetDirectory(0)
         hCorrs[depth]=hCorr
-        hCorrErrs[depth]=hCorrErr
         
-    # create some other temporary histograms
-    hSmoothed = ROOT.TH1D("hSmoothed","Smoothed",10000,0,250)
-    hSmoothed.SetDirectory(0)
-
     # loop over subdetectors
     for subdetindex,subdet in enumerate(subdets):
         if subdet!=args.subdetector and args.subdetector!="all": continue
@@ -175,8 +196,8 @@ def main():
                     if h is None: continue
                     foundHist=True
                     h.SetAxisRange(minthresholds[subdetindex],maxthresholds[subdetindex])
-                    rLP = h.Integral()*h.GetMean() # average of the energy*the integral
-                    meanE=meanE+rLP
+                    meanE=meanE+h.GetMean() # average energy
+#                    meanE=meanE+h.GetMean()*h.Integral()*0.25 # average energy*integral (normalized to bin size)
                     nmeanE=nmeanE+1
                     # end first iphi loop
 
@@ -208,58 +229,29 @@ def main():
                     outputhistfile.cd()
                     if ieta<0:
                         h.Write("hOriginal"+subdet+"M"+str(abs(ieta))+"_"+str(iphi)+"_"+str(depth))
+                        spline.Write("spline"+subdet+"M"+str(abs(ieta))+"_"+str(iphi)+"_"+str(depth))
                     else:
                         h.Write("hOriginal"+subdet+"P"+str(abs(ieta))+"_"+str(iphi)+"_"+str(depth))
-                
-                    # loop over iterations
-                    corr = 1.0
-                    for iter in range(niterations):
+                        spline.Write("spline"+subdet+"P"+str(abs(ieta))+"_"+str(iphi)+"_"+str(depth))
 
-                        # fill a new histogram with the corrected energies based off the spline
-                        hSmoothed.Reset()
-                        for k in range(1,hSmoothed.GetNbinsX()+1):
-                            x=hSmoothed.GetBinCenter(k)
-                            hSmoothed.Fill(x*corr,spline.Eval(x)/10.0)
-                        hSmoothed.SetAxisRange(minthresholds[subdetindex],maxthresholds[subdetindex])
-                        rLP = hSmoothed.Integral()*hSmoothed.GetMean()
-                        deltaLP = (rLP-meanE)/meanE
+                    # compute the correction
+                    mini = minimizeFunc(spline, meanE, minthresholds[subdetindex], maxthresholds[subdetindex])
+                    corr=mini.minimize()
+                    if corr<0:
+                        print("Convergence Failure Warning for: "+subdet+", ieta="+str(ieta)+", iphi="+str(iphi)+", depth="+str(depth),file=sys.stderr)
 
-                        # maximum change is 70%
-                        if abs(deltaLP)>0.7: deltaLP=0.7*deltaLP/abs(deltaLP)
 
-                        # compute the relative uncertainty on the correction
-                        if rLP>0:
-                            drErr = hSmoothed.GetMeanError()/hSmoothed.GetMean()
-                        else:
-                            drErr = 1e-6
-
-                        # make the new correction (if we need to keep going)
-                        if abs(deltaLP)>0.003 or iter<2:
-                            corr = corr*(1-deltaLP/(1.+iter**.5))
-                            corrErr = corr*drErr
-                        else:
-                            corrErr = corr*drErr
-                            break
-                        # end loop over iterations
-
-                    # print result (and a warning if the correction is anomalous or the error is large)
+                    # print result (and a warning if the correction is anomalous)
                     corrStr = f"{corr:.5f}"
-                    corrErrStr = f"{corrErr:.5f}"
-                    outputtxtfile.write(str(subdetnums[subdetindex])+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+" "+corrStr+" "+corrErrStr+"\n")
+                    outputtxtfile.write(str(subdetnums[subdetindex])+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+" "+corrStr+"\n")
                     if not (subdet=="HE" and abs(ieta)==29) or not args.suppressHE29:
                         if abs(1.-corr)>args.corrWarn:
-                            print("Large Correction Warning: correction for "+subdet+", ieta="+str(ieta)+", iphi=", str(iphi)+", depth="+str(depth)+" is "+corrStr+" +/- "+corrErrStr,file=sys.stderr)
-                        if corrErr/corr>args.corrErrWarn:
-                            print("Large Error Warning: correction for "+subdet+", ieta="+str(ieta)+", iphi=", str(iphi)+", depth="+str(depth)+" is "+corrStr+" +/- "+corrErrStr,file=sys.stderr)
-                        if abs(1.-corr)/corrErr>args.corrPullWarn:
-                            print("Large Pull Warning: correction for "+subdet+", ieta="+str(ieta)+", iphi=", str(iphi)+", depth="+str(depth)+" is "+corrStr+" +/- "+corrErrStr,file=sys.stderr)
-
+                            print("Large Correction Warning: correction for "+subdet+", ieta="+str(ieta)+", iphi=", str(iphi)+", depth="+str(depth)+" is "+corrStr,file=sys.stderr)
                     
                     # there are overlapping detector elements in the HE and HF when ieta=29, so offset the HF hits by one unit in iphi so we can see it on the histogram
                     if subdet=="HF" and abs(ieta)==29: newiphi=iphi+1
                     else:                              newiphi=iphi
                     hCorrs[depth-1].Fill(ieta,newiphi,corr)
-                    hCorrErrs[depth-1].Fill(ieta,newiphi,corrErr)
                     
                     # end loop over iphi
                 # end loop over ieta
@@ -269,8 +261,6 @@ def main():
     outputtxtfile.close()
     outputhistfile.cd()
     for h in hCorrs:
-        h.Write()
-    for h in hCorrErrs:
         h.Write()
     inputhistfile.Close()
     outputhistfile.Close()
