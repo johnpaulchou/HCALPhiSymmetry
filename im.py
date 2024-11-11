@@ -7,6 +7,7 @@ import argparse
 import sys
 import scipy.optimize as spo
 import scipy.integrate as integrate
+import numpy as np
 
 # detector geometry and magic numbers
 subdets = [ "HB", "HE", "HF" ]
@@ -18,12 +19,14 @@ miniphi = 1
 maxiphi = 72
 minthresholds = [ 4., 4., 10.]
 maxthresholds = [ 100., 150., 150.]
+modulus = 20
+doEFlow = True # if true, use the mean*integral, not the mean
 
 ### getHist() - opens a file and gets the histogram with the given detector ID
-def getHist(rootfile, subdet, ieta, iphi, depth, checkGoodChannel=True):
+def getHist(rootfile, subdet, ieta, iphi, depth, mod, checkGoodChannel=True):
 
     # don't bother if it's not a good channel to begin with
-    if checkGoodChannel and not goodChannel(subdet, ieta, iphi, depth): return None
+    if checkGoodChannel and not goodChannel(subdet, ieta, iphi, depth, mod): return None
 
     # select directory
     if subdet=="HB":   histname = "phaseHF/eHBspec/E_"
@@ -31,8 +34,8 @@ def getHist(rootfile, subdet, ieta, iphi, depth, checkGoodChannel=True):
     else:              histname = "phaseHF/espec/E_"
 
     # account for +/- in the name
-    if ieta<0: histname = histname + "-" + str(abs(ieta)) + "_" + str(iphi) + "_" + str(depth)
-    else:      histname = histname + "+" + str(abs(ieta)) + "_" + str(iphi) + "_" + str(depth)
+    if ieta<0: histname = histname + "-" + str(abs(ieta)) + "_" + str(iphi) + "_" + str(depth) + "_" + str(mod)
+    else:      histname = histname + "+" + str(abs(ieta)) + "_" + str(iphi) + "_" + str(depth) + "_" + str(mod)
 
     # get the hist and return it
     rootfile.cd()
@@ -47,12 +50,13 @@ def getHist(rootfile, subdet, ieta, iphi, depth, checkGoodChannel=True):
     ### end getHist()
 
 ### goodChannel() - determines if the channel should exist (or not)
-def goodChannel(subdet, ieta, iphi, depth):
+def goodChannel(subdet, ieta, iphi, depth, mod):
 
     # do some sanity checks, first
     if iphi<=0 or iphi>=73: return False
     if ieta==0 or abs(ieta)>=42: return False
     if depth<=0 or depth>7: return False
+    if mod>=modulus or mod<0: return False
 
     # HB checks
     if subdet=="HB" and depth>=1 and depth<=3 and abs(ieta)<=16: return True
@@ -91,12 +95,13 @@ def testGoodChannel(inputfilename):
             ietas = itertools.chain(ietas1, ietas2)
             for ieta in ietas:
                 for iphi in range(miniphi, maxiphi+1):
-                    val=goodChannel(subdet, ieta, iphi, depth)
-                    h=getHist(inputhistfile, subdet, ieta, iphi, depth, False)
-                    if h is None and val==True:
-                        print("No hist found for "+subdet+" "+str(ieta)+" "+str(iphi)+" "+str(depth))
-                    elif h is not None and val==False:
-                        print("Hist found for "+subdet+" "+str(ieta)+" "+str(iphi)+" "+str(depth))
+                    for mod in range(modulus):
+                        val=goodChannel(subdet, ieta, iphi, depth, mod)
+                        h=getHist(inputhistfile, subdet, ieta, iphi, depth, mod, False)
+                        if h is None and val==True:
+                            print("No hist found for "+subdet+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+" "+str(mod))
+                        elif h is not None and val==False:
+                            print("Hist found for "+subdet+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+" "+str(mod))
     ### end testGoodChannel()
 
 # defines the function to minimize
@@ -119,29 +124,37 @@ class minimizeFunc:
         splineMean = integrate.quad(self.splineMeanF,self.lo/corr[0],self.hi/corr[0],args=(corr[0]))
 
         # compute the mean and return the difference with the target mean squared
-        return (splineMean[0]/splineIntegral[0] - self.mean)**2
+        if doEFlow: return (splineMean[0] - self.mean)**2
+        else: return (splineMean[0]/splineIntegral[0] - self.mean)**2
 
     def minimize(self):
-        result = spo.minimize(self.minimizer, 1.0, bounds=[(0.10,3.)],tol=1e-3,method="Nelder-Mead")
-        if result.success:
-            return result.x[0]
-        else:
-            return -1.
+        result = spo.minimize(self.minimizer, 1.0, bounds=[(0.10,3.)],tol=1e-4,method="Nelder-Mead")
+        if result.success: return result.x[0]
+        else: return -1.
 
 ### define the main function
 def main():
     # setup parser
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("inputfilename", help="name of .root file containing the histograms to be processed")
-    parser.add_argument("subdetector", help="select the subdetector (HB, HE, HF, or all)", choices = ["HB","HE","HF","all"])
-    parser.add_argument("--corrWarn", help="print a warning if the correction deviates from 1.0 by this amount",type=float, default=0.25)
-    parser.add_argument("--suppressHE29", help="suppress warnings about HE |ieta|=29", action='store_true')
+    parser.add_argument("--subdetector", help="select the subdetector (HB, HE, HF, or all)", default="all", choices=["HB","HE","HF","all"])
+    parser.add_argument("--side",help="side of the detector (+, -, or all)", default="all", choices=["+","-","all"])
+    parser.add_argument("--ieta",help="ieta value (0 for all ietas)", type=int, default=0)
+    parser.add_argument("--depth",help="depth value (0 for all depths)", type=int, default=0)
     args=parser.parse_args()
-
-    # iterations and filenames
+    
+    # filenames
     inputfilename = args.inputfilename
-    outputtxtfilename = "corrs_"+args.subdetector+".txt"
-    outputhistfilename = "hists_"+args.subdetector+".root"
+    if args.ieta==0:
+        if args.side=="+":   filestr = args.subdetector+"P"
+        elif args.side=="-": filestr = args.subdetector+"M"
+        else:                filestr = args.subdetector+"PM"
+    else:
+        filestr = args.subdetector+"_e"+str(args.ieta)
+    if args.depth!=0:
+        filestr = filestr + "_d"+str(args.depth)
+    outputtxtfilename = "corrs_"+filestr+".txt"
+    outputhistfilename = "hists_"+filestr+".root"
 
     # open files
     outputtxtfile = open(outputtxtfilename, "w")
@@ -151,108 +164,114 @@ def main():
         print("Error: Unable to open file "+inputfilename+".")
         exit(1)
 
-        
-    # create some histograms to store the corrections
-    hCorrs = [None] * 7
-    for depth in range(7):
-        hCorr = ROOT.TH2D("hCorr"+str(depth+1),"Corrections for depth "+str(depth+1),83,-41.5,41.5,72,0.5,72.5)
-        hCorr.SetDirectory(0)
-        hCorrs[depth]=hCorr
-        
     # loop over subdetectors
     for subdetindex,subdet in enumerate(subdets):
         if subdet!=args.subdetector and args.subdetector!="all": continue
     
         # loop over depths
         for depth in range(1, ndepths[subdetindex]+1):
-        
+            if depth!=args.depth and args.depth!=0: continue
+            
             # loop over positive and negative ieta
             ietas1 = range(minabsietas[subdetindex],maxabsietas[subdetindex]+1)
             ietas2 = range(-maxabsietas[subdetindex],-minabsietas[subdetindex]+1)
             ietas = itertools.chain(ietas1, ietas2)
             for ieta in ietas:
-
-                # loop over iphi the first time
-                foundHist=False
-                meanE=0.
-                nmeanE=0
-                hists = [None]*(maxiphi-miniphi+1) # store histograms so that you don't have to read it twice
-                for iphi in range(miniphi, maxiphi+1):
+                if args.side!="all" and ((ieta<0 and args.side!="-") or (ieta>0 and args.side!="+")): continue
+                if ieta!=args.ieta and args.ieta!=0: continue
                 
-                    # get the histogram and compute stuff
-                    h=getHist(inputhistfile, subdet, ieta, iphi, depth)
+                # store the corrections here
+                corrs = [[-1 for mod in range(modulus)] for iphi in range(maxiphi+1-miniphi)]
+                
+                # loop over moduli
+                for mod in range(modulus):
+                
+                    # loop over iphi the first time
+                    foundHist=False
+                    meanE=0.
+                    nmeanE=0
+                    hists = [None]*(maxiphi-miniphi+1) # store histograms so that you don't have to read it twice
+                    for iphi in range(miniphi, maxiphi+1):
+                
+                        # get the histogram and compute stuff
+                        h=getHist(inputhistfile, subdet, ieta, iphi, depth, mod)
 
-                    # if the histogram has issues, change it to "None" to be skipped later, and print a warning
-                    if h is not None:
+                        # if the histogram has issues, change it to "None" to be skipped later, and print a warning
+                        if h is not None:
+                            h.SetAxisRange(minthresholds[subdetindex],maxthresholds[subdetindex])
+                            if h.Integral()<=0 or h.GetRMS()<=0:
+                                print("Histogram Warning: "+subdet+", ieta="+str(ieta)+", iphi="+str(iphi)+", depth="+str(depth)+", mod="+str(mod)+" is empty or has some issues",file=sys.stderr)
+                                h=None
+
+                        # store it in the list, even if it is bad
+                        hists[iphi-miniphi]=h
+
+                        # skip bad histograms
+                        if h is None: continue
+                        foundHist=True
                         h.SetAxisRange(minthresholds[subdetindex],maxthresholds[subdetindex])
-                        if h.Integral()<=0 or h.GetRMS()<=0:
-                            print("Histogram Warning: "+subdet+", ieta="+str(ieta)+", iphi="+str(iphi)+", depth="+str(depth)+" is empty or has some issues",file=sys.stderr)
-                            h=None
+                        if doEFlow: meanE=meanE+h.GetMean()*h.Integral("width") # average energy*integral (normalized to bin size)
+                        else:       meanE=meanE+h.GetMean() # average energy
+                        nmeanE=nmeanE+1
+                        # end first iphi loop
 
-                    # store it in the list, even if it is bad
-                    hists[iphi-miniphi]=h
-
-                    # skip bad histograms
-                    if h is None: continue
-                    foundHist=True
-                    h.SetAxisRange(minthresholds[subdetindex],maxthresholds[subdetindex])
-                    meanE=meanE+h.GetMean() # average energy
-#                    meanE=meanE+h.GetMean()*h.Integral()*0.25 # average energy*integral (normalized to bin size)
-                    nmeanE=nmeanE+1
-                    # end first iphi loop
-
-                # skip this if no iphi slice was found
-                if not foundHist: continue
+                    # skip this if no iphi slice was found
+                    if not foundHist: continue
             
-                # compute the average across all iphi ranges
-                meanE=meanE/nmeanE
-                if meanE<=0:
-                    print("all histograms empty for subdet="+subdet+", ieta="+str(ieta)+", depth="+str(depth),file=sys.stderr)
-                    continue
+                    # compute the average across all iphi ranges
+                    meanE=meanE/nmeanE
+                    if meanE<=0:
+                        print("all histograms empty for subdet="+subdet+", ieta="+str(ieta)+", depth="+str(depth)+", mod="+str(mod),file=sys.stderr)
+                        continue
             
-                # loop over iphi a second time
+                    # loop over iphi a second time
+                    for iphi in range(miniphi, maxiphi+1):
+
+                        # get the histogram again
+                        h=hists[iphi-miniphi]
+                        if h is None: continue
+                        h.SetAxisRange(minthresholds[subdetindex],maxthresholds[subdetindex])
+                
+                        # create a spline
+                        xcorr = [0.0]*h.GetNbinsX()
+                        ycorr = [0.0]*h.GetNbinsX()
+                        for k in range(1, h.GetNbinsX()+1):
+                            xcorr[k-1]=h.GetBinCenter(k)
+                            ycorr[k-1]=h.GetBinContent(k)
+                        spline = ROOT.TSpline5("spline"+subdet+str(ieta)+str(iphi)+str(depth),ar.array('d',xcorr),ar.array('d',ycorr),len(xcorr),"",10,20)
+
+                        outputhistfile.cd()
+                        if ieta<0:
+                            h.Write("hOriginal"+subdet+"M"+str(abs(ieta))+"_"+str(iphi)+"_"+str(depth)+"_"+str(mod))
+                            spline.Write("spline"+subdet+"M"+str(abs(ieta))+"_"+str(iphi)+"_"+str(depth)+"_"+str(mod))
+                        else:
+                            h.Write("hOriginal"+subdet+"P"+str(abs(ieta))+"_"+str(iphi)+"_"+str(depth)+"_"+str(mod))
+                            spline.Write("spline"+subdet+"P"+str(abs(ieta))+"_"+str(iphi)+"_"+str(depth)+"_"+str(mod))
+
+                        # compute the correction and store it
+                        mini = minimizeFunc(spline, meanE, minthresholds[subdetindex], maxthresholds[subdetindex])
+                        corr=mini.minimize()
+                        if corr<0:
+                            print("Convergence Failure Warning for: "+subdet+", ieta="+str(ieta)+", iphi="+str(iphi)+", depth="+str(depth)+", mod="+str(mod),file=sys.stderr)
+                        corrs[iphi-miniphi][mod]=corr
+
+                        # end loop over iphi
+                    # end loop over moduli
+
+                # last loop over iphi
                 for iphi in range(miniphi, maxiphi+1):
 
-                    # get the histogram again
-                    h=hists[iphi-miniphi]
-                    if h is None: continue
-                    h.SetAxisRange(minthresholds[subdetindex],maxthresholds[subdetindex])
-                
-                    # create a spline
-                    xcorr = [0.0]*h.GetNbinsX()
-                    ycorr = [0.0]*h.GetNbinsX()
-                    for k in range(1, h.GetNbinsX()+1):
-                        xcorr[k-1]=h.GetBinCenter(k)
-                        ycorr[k-1]=h.GetBinContent(k)
-                    spline = ROOT.TSpline5("spline"+subdet+str(ieta)+str(iphi)+str(depth),ar.array('d',xcorr),ar.array('d',ycorr),len(xcorr),"",10,20)
-
-                    outputhistfile.cd()
-                    if ieta<0:
-                        h.Write("hOriginal"+subdet+"M"+str(abs(ieta))+"_"+str(iphi)+"_"+str(depth))
-                        spline.Write("spline"+subdet+"M"+str(abs(ieta))+"_"+str(iphi)+"_"+str(depth))
-                    else:
-                        h.Write("hOriginal"+subdet+"P"+str(abs(ieta))+"_"+str(iphi)+"_"+str(depth))
-                        spline.Write("spline"+subdet+"P"+str(abs(ieta))+"_"+str(iphi)+"_"+str(depth))
-
-                    # compute the correction
-                    mini = minimizeFunc(spline, meanE, minthresholds[subdetindex], maxthresholds[subdetindex])
-                    corr=mini.minimize()
-                    if corr<0:
-                        print("Convergence Failure Warning for: "+subdet+", ieta="+str(ieta)+", iphi="+str(iphi)+", depth="+str(depth),file=sys.stderr)
-
-
-                    # print result (and a warning if the correction is anomalous)
-                    corrStr = f"{corr:.5f}"
-                    outputtxtfile.write(str(subdetnums[subdetindex])+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+" "+corrStr+"\n")
-                    if not (subdet=="HE" and abs(ieta)==29) or not args.suppressHE29:
-                        if abs(1.-corr)>args.corrWarn:
-                            print("Large Correction Warning: correction for "+subdet+", ieta="+str(ieta)+", iphi=", str(iphi)+", depth="+str(depth)+" is "+corrStr,file=sys.stderr)
+                    # compute average and stddev of the correction over moduli
+                    data = np.array(corrs[iphi-miniphi])
+                    data = data[data >= 0] # eliminate negative data values
+                    if len(data)<=0: continue
+                    avgcorr=np.mean(data)
+                    stddevcorr=np.std(data, ddof=1, mean=avgcorr)
                     
-                    # there are overlapping detector elements in the HE and HF when ieta=29, so offset the HF hits by one unit in iphi so we can see it on the histogram
-                    if subdet=="HF" and abs(ieta)==29: newiphi=iphi+1
-                    else:                              newiphi=iphi
-                    hCorrs[depth-1].Fill(ieta,newiphi,corr)
-                    
+                    corrStr = f"{avgcorr:.5f}"
+                    corrErrStr = f"{stddevcorr:.5f}"
+                    outputtxtfile.write(str(subdetnums[subdetindex])+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+" "+corrStr+" "+corrErrStr+"\n")
+
                     # end loop over iphi
                 # end loop over ieta
             # end loop over depth
@@ -260,8 +279,6 @@ def main():
 
     outputtxtfile.close()
     outputhistfile.cd()
-    for h in hCorrs:
-        h.Write()
     inputhistfile.Close()
     outputhistfile.Close()
 ### end main function
