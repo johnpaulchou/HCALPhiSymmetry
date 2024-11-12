@@ -267,7 +267,8 @@ def main():
                     if len(data)<=0: continue
                     avgcorr=np.mean(data)
                     stddevcorr=np.std(data, ddof=1, mean=avgcorr)
-                    
+
+                    # write the results to the file
                     corrStr = f"{avgcorr:.5f}"
                     corrErrStr = f"{stddevcorr:.5f}"
                     outputtxtfile.write(str(subdetnums[subdetindex])+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+" "+corrStr+" "+corrErrStr+"\n")
