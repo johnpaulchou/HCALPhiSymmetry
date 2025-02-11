@@ -8,6 +8,7 @@ import sys
 import scipy.optimize as spo
 import scipy.integrate as integrate
 import numpy as np
+from scipy.stats import bootstrap
 
 # detector geometry and magic numbers
 subdets = [ "HB", "HE", "HF" ]
@@ -182,7 +183,7 @@ def main():
                 
                 # store the corrections here
                 corrs = [[-1 for mod in range(modulus)] for iphi in range(maxiphi+1-miniphi)]
-                
+
                 # loop over moduli
                 for mod in range(modulus):
                 
@@ -266,8 +267,10 @@ def main():
                     data = data[data >= 0] # eliminate negative data values
                     if len(data)<=0: continue
                     avgcorr=np.mean(data)
-                    stddevcorr=np.std(data, ddof=1, mean=avgcorr)
-
+#                    stddevcorr=np.std(data, ddof=1, mean=avgcorr)/len(data)**.5
+                    d=(data,)
+                    stddevcorr=bootstrap(d, np.mean, confidence_level=0.68,n_resamples=999).standard_error
+                    
                     # write the results to the file
                     corrStr = f"{avgcorr:.5f}"
                     corrErrStr = f"{stddevcorr:.5f}"
