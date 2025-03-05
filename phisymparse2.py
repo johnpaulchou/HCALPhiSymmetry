@@ -60,13 +60,86 @@ def corr_plots(file1,depth):
     imagename=outfolder+get_filename(file1)+"_d"+str(depth)+".png"
     canvas.SaveAs(imagename)
 
+def correlation_plot(file1,file2):
+    df1=get_df(file1)
+    df2=get_df(file2)
+    graphhb = ROOT.TGraph()
+    graphhb.SetTitle("Correlation for Barrel")
+    graphhb.SetMarkerStyle(20)
+    graphhb.SetMarkerSize(0.5)
+    graphhb.SetMarkerColor(ROOT.kBlue)
+    graphhb.GetXaxis().SetTitle(get_filename(file1))  # Set X-axis title
+    graphhb.GetYaxis().SetTitle(get_filename(file2))
+    graphhb.GetXaxis().SetLimits(0, 12)
+    graphhe = ROOT.TGraph()
+    graphhe.SetTitle("Correlation for Endcap")
+    graphhe.SetMarkerStyle(20)
+    graphhe.SetMarkerSize(0.5)
+    graphhe.SetMarkerColor(ROOT.kBlue)
+    graphhe.GetXaxis().SetTitle(get_filename(file1))  # Set X-axis title
+    graphhe.GetYaxis().SetTitle(get_filename(file2))
+    graphhf = ROOT.TGraph()
+    graphhf.SetTitle("Correlation for Forward")
+    graphhf.SetMarkerStyle(20)
+    graphhf.SetMarkerSize(0.5)
+    graphhf.SetMarkerColor(ROOT.kBlue)
+    graphhf.GetXaxis().SetTitle(get_filename(file1))  # Set X-axis title
+    graphhf.GetYaxis().SetTitle(get_filename(file2))
+    for row in df1.itertuples():
+        (subdet,ieta,iphi,depth)=(row.Subdetector,row.iEta,row.iPhi,row.Depth)
+        corr1=row.Correction
+        corr2=df2.query('Subdetector==@subdet and iEta==@ieta and iPhi==@iphi and Depth==@depth')['Correction'].iloc[0]
+        if(corr2!=0):
+            if (subdet==4) :graphhf.AddPoint(corr1, corr2)
+            if (subdet==2) :graphhe.AddPoint(corr1, corr2)
+            if (subdet==1) :graphhb.AddPoint(corr1, corr2)
+    canvas = ROOT.TCanvas("canvas", "Scatter Plot", 1800, 1200)
+    pearson_r_hb = graphhb.GetCorrelationFactor()
+    fit_functionb = ROOT.TF1("fit", "pol1", 0, 10)
+    graphhb.Fit(fit_functionb, "Q")
+    graphhb.Draw("AP")
+    legend = ROOT.TLegend(0.15, 0.75, 0.4, 0.85)
+    legend.SetFillStyle(0)
+    legend.SetBorderSize(0)
+    legend.SetTextSize(0.03)
+    dummy_graph = ROOT.TGraph()  # Invisible graph
+    legend.AddEntry(dummy_graph, f"#rho = {pearson_r_hb:.4f}", "")
+    legend.AddEntry(fit_functionb, "Linear Fit", "l")
+    legend.Draw()
+    imagename=outfolder+"correlation_"+get_filename(file1)+get_filename(file2)+"_hb"+".png"
+    canvas.SaveAs(imagename)
+    pearson_r_he = graphhe.GetCorrelationFactor()
+    fit_functione = ROOT.TF1("fit", "pol1", 0, 10)
+    graphhe.Fit(fit_functione, "Q")
+    graphhe.Draw("AP")
+    legend = ROOT.TLegend(0.15, 0.75, 0.4, 0.85)
+    legend.SetFillStyle(0)
+    legend.SetBorderSize(0)
+    legend.SetTextSize(0.03)
+    legend.AddEntry(dummy_graph, f"#rho = {pearson_r_he:.4f}", "")
+    legend.AddEntry(fit_functione, "Linear Fit", "l")
+    legend.Draw()
+    imagename=outfolder+"correlation_"+get_filename(file1)+get_filename(file2)+"_he"+".png"
+    canvas.SaveAs(imagename)
+    pearson_r_hf = graphhf.GetCorrelationFactor()
+    fit_functionf = ROOT.TF1("fit", "pol1", 0, 10)
+    graphhf.Fit(fit_functionf, "Q")
+    graphhf.Draw("AP")
+    legend = ROOT.TLegend(0.15, 0.75, 0.4, 0.85)
+    legend.SetFillStyle(0)
+    legend.SetBorderSize(0)
+    legend.SetTextSize(0.03)
+    legend.AddEntry(dummy_graph, f"#rho = {pearson_r_hf:.4f}", "")
+    legend.AddEntry(fit_functionf, "Linear Fit", "l")
+    legend.Draw()
+    imagename=outfolder+"correlation_"+get_filename(file1)+get_filename(file2)+"_hf"+".png"
+    canvas.SaveAs(imagename)
 def pull_plots(file1,file2,outpulls,outres,depth):
     df1=get_df(file1)
     df2=get_df(file2)
     #plot corrections:
     #plot pulls
     pulls_th2d=ROOT.TH2D('pull_th2d','Pulls for Depth '+str(depth),83,-41,41,73,0,72)
-
     resid_th2d=ROOT.TH2D('resid_th2d','Residuals for Depth '+str(depth),83,-41,41,73,0,72)
 
     residuals_hb=[]
@@ -102,7 +175,7 @@ def pull_plots(file1,file2,outpulls,outres,depth):
                 if(subdet==4 and (ieta==29 or ieta==-29)):resid_th2d.SetBinContent(ieta+42,iphi+1,residual)
                 else: resid_th2d.SetBinContent(ieta+42,iphi,residual)
                 pull=get_pull(file1,file2,subdet,ieta,iphi,depth) #Sean indented this line to->
-                
+
                 outpulls.write(str(subdet)+" "+str(ieta)+" "+str(iphi)+' '+str(depth)+' '+str(pull)+'\n')#
                 #print(pull)
                 outres.write(str(subdet)+" "+str(ieta)+" "+str(iphi)+' '+str(depth)+' '+str(residual)+'\n')#
@@ -289,6 +362,7 @@ def main():
 
     #uncert_plots(iter_file,1)
     #pull_plots(file1,file2,pulls,residuals,1)
+    correlation_plot(file1,file2)
     for depth in range(1,8):
         pull_plots(file1,file2,pulls,residuals,depth)
         uncert_plots(file1,uncerts1,depth)
