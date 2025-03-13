@@ -81,53 +81,83 @@ def correlation_plot(file1,file2):
     graphhf.SetMarkerColor(ROOT.kBlue)
     graphhf.GetXaxis().SetTitle(get_filename(file1))  # Set X-axis title
     graphhf.GetYaxis().SetTitle(get_filename(file2))
+    x_minb, x_maxb = float("inf"), float("-inf")
+    x_mine, x_maxe = float("inf"), float("-inf")
+    x_minf, x_maxf = float("inf"), float("-inf")
     for row in df1.itertuples():
         (subdet,ieta,iphi,depth)=(row.Subdetector,row.iEta,row.iPhi,row.Depth)
         corr1=row.Correction
-        if(((df2['Subdetector']==subdet) & (df2['iEta']==ieta) & (df2['iPhi']==iphi) & (df2['Depth']==depth)).any()): #need to make sure it exists
-            corr2=df2.query('Subdetector==@subdet and iEta==@ieta and iPhi==@iphi and Depth==@depth')['Correction'].iloc[0]
+        corr2=df2.query('Subdetector==@subdet and iEta==@ieta and iPhi==@iphi and Depth==@depth')['Correction'].iloc[0]
+        if(((df2['Subdetector']==subdet) & (df2['iEta']==ieta) & (df2['iPhi']==iphi) & (df2['Depth']==depth)).any()):
             if(corr2!=0):
-                if (subdet==4) :graphhf.AddPoint(corr1, corr2)
-                if (subdet==2) :graphhe.AddPoint(corr1, corr2)
-                if (subdet==1) :graphhb.AddPoint(corr1, corr2)
-        #otherwise, the channel doesn't exist in file 2. This can be handled later in the pulls method.
+                if (subdet==4) :
+                    graphhf.AddPoint(corr1, corr2)
+                    x_minf = min(x_minf, corr1)
+                    x_maxf = max(x_maxf, corr1)
+                if (subdet==2) :
+                    graphhe.AddPoint(corr1, corr2)
+                    x_mine = min(x_mine, corr1)
+                    x_maxe = max(x_maxe, corr1)
+                if (subdet==1) :
+                    graphhb.AddPoint(corr1, corr2)
+                    x_minb = min(x_minb, corr1)
+                    x_maxb = max(x_maxb, corr1)
+        #otherwise the channel does not exist in file 2. This is handled later in the pull method. 
     canvas = ROOT.TCanvas("canvas", "Scatter Plot", 1800, 1200)
+    xy_lineB = ROOT.TF1("identityB", "x", x_minb, x_maxb)  # y = x
+    xy_lineB.SetLineColor(ROOT.kBlack)  # Black color
+    xy_lineB.SetLineWidth(2)  # Line thickness
+    xy_lineB.SetLineStyle(3)  # Dotted line (ROOT style 3)
     pearson_r_hb = graphhb.GetCorrelationFactor()
     fit_functionb = ROOT.TF1("fit", "pol1", 0, 10)
     graphhb.Fit(fit_functionb, "Q")
     graphhb.Draw("AP")
+    xy_lineB.Draw("SAME")
     legend = ROOT.TLegend(0.15, 0.75, 0.4, 0.85)
     legend.SetFillStyle(0)
     legend.SetBorderSize(0)
     legend.SetTextSize(0.03)
     dummy_graph = ROOT.TGraph()  # Invisible graph
     legend.AddEntry(dummy_graph, f"#rho = {pearson_r_hb:.4f}", "")
+    legend.AddEntry(xy_lineB, "y = x", "l")  # "l" = line
     legend.AddEntry(fit_functionb, "Linear Fit", "l")
     legend.Draw()
     imagename=outfolder+"correlation_"+get_filename(file1)+get_filename(file2)+"_hb"+".png"
     canvas.SaveAs(imagename)
+    xy_lineE = ROOT.TF1("identityE", "x", x_mine, x_maxe)
+    xy_lineE.SetLineColor(ROOT.kBlack)  # Black color
+    xy_lineE.SetLineWidth(2)  # Line thickness
+    xy_lineE.SetLineStyle(3)  # Dotted line (ROOT style 3)
     pearson_r_he = graphhe.GetCorrelationFactor()
     fit_functione = ROOT.TF1("fit", "pol1", 0, 10)
     graphhe.Fit(fit_functione, "Q")
     graphhe.Draw("AP")
+    xy_lineE.Draw("SAME")
     legend = ROOT.TLegend(0.15, 0.75, 0.4, 0.85)
     legend.SetFillStyle(0)
     legend.SetBorderSize(0)
     legend.SetTextSize(0.03)
     legend.AddEntry(dummy_graph, f"#rho = {pearson_r_he:.4f}", "")
+    legend.AddEntry(xy_lineE, "y = x", "l")  # "l" = line
     legend.AddEntry(fit_functione, "Linear Fit", "l")
     legend.Draw()
     imagename=outfolder+"correlation_"+get_filename(file1)+get_filename(file2)+"_he"+".png"
     canvas.SaveAs(imagename)
+    xy_lineF = ROOT.TF1("identityF", "x", x_minf, x_maxf)
+    xy_lineF.SetLineColor(ROOT.kBlack)  # Black color
+    xy_lineF.SetLineWidth(2)  # Line thickness
+    xy_lineF.SetLineStyle(3)  # Dotted line (ROOT style 3)
     pearson_r_hf = graphhf.GetCorrelationFactor()
     fit_functionf = ROOT.TF1("fit", "pol1", 0, 10)
     graphhf.Fit(fit_functionf, "Q")
     graphhf.Draw("AP")
+    xy_lineF.Draw("SAME")
     legend = ROOT.TLegend(0.15, 0.75, 0.4, 0.85)
     legend.SetFillStyle(0)
     legend.SetBorderSize(0)
     legend.SetTextSize(0.03)
     legend.AddEntry(dummy_graph, f"#rho = {pearson_r_hf:.4f}", "")
+    legend.AddEntry(xy_lineF, "y = x", "l")  # "l" = line
     legend.AddEntry(fit_functionf, "Linear Fit", "l")
     legend.Draw()
     imagename=outfolder+"correlation_"+get_filename(file1)+get_filename(file2)+"_hf"+".png"
