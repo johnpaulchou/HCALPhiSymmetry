@@ -87,8 +87,8 @@ def correlation_plot(file1,file2):
     for row in df1.itertuples():
         (subdet,ieta,iphi,depth)=(row.Subdetector,row.iEta,row.iPhi,row.Depth)
         corr1=row.Correction
-        corr2=df2.query('Subdetector==@subdet and iEta==@ieta and iPhi==@iphi and Depth==@depth')['Correction'].iloc[0]
         if(((df2['Subdetector']==subdet) & (df2['iEta']==ieta) & (df2['iPhi']==iphi) & (df2['Depth']==depth)).any()):
+            corr2=df2.query('Subdetector==@subdet and iEta==@ieta and iPhi==@iphi and Depth==@depth')['Correction'].iloc[0]
             if(corr2!=0):
                 if (subdet==4) :
                     graphhf.AddPoint(corr1, corr2)
@@ -294,18 +294,18 @@ def pull_plots(file1,file2,outpulls,outres,outliers,depth):
         residuals.GetYaxis().SetTitle("Entries")
         canvas.SaveAs(outfolder+'freq_resid_f1_'+get_filename(file1)+'_f2_'+get_filename(file2)+'_'+res_subdet+'_d'+str(depth)+".png")
         canvas.Close()
-    #for res_plot in residuals_1d:
-        #plt.figure()
-        #plt.hist(res_plot, bins=50, color='skyblue', edgecolor='black',density=True, alpha=0.6)
-        #plt.xlabel('Residual')
-        #plt.ylabel('Frequency')
-        #mu, std = norm.fit(res_plot)
-        #xmin, xmax = plt.xlim()
-        #x = np.linspace(xmin, xmax, 100)
-        #p = norm.pdf(x, mu, std)
-        #plt.plot(x, p, 'r--', linewidth=2, label=f'Gaussian fit: $\mu$={mu:.2f}, $\sigma$={std:.2f}')
+    for res_plot in residuals_1d:
+        plt.figure()
+        plt.hist(res_plot, bins=50, color='skyblue', edgecolor='black',density=True, alpha=0.6)
+        plt.xlabel('Residual')
+        plt.ylabel('Frequency')
+        mu, std = norm.fit(res_plot)
+        xmin, xmax = plt.xlim()
+        x = np.linspace(xmin, xmax, 100)
+        p = norm.pdf(x, mu, std)
+        plt.plot(x, p, 'r--', linewidth=2, label=f'Gaussian fit: $\mu$={mu:.2f}, $\sigma$={std:.2f}')
 
-        #plt.savefig('freq_resid_f1_'+file1[:-4]+'_f2'+file2[:-4]+'_'+residuals_1d[res_plot]+'_d'+str(depth)+".png")
+        plt.savefig('freq_resid_f1_'+file1[:-4]+'_f2'+file2[:-4]+'_'+residuals_1d[res_plot]+'_d'+str(depth)+".png")
     ROOT.gStyle.SetOptStat(0)
     resid_canvas = ROOT.TCanvas("canvas2", "Canvas Title2", 1800, 1200)
     resid_canvas.SetRightMargin(0.15)
