@@ -28,9 +28,7 @@ def get_filename(filename):
     #corre=df.query('Subdetector==@subdetector and iEta==@ieta and iPhi==@iphi and Depth==@depth')['Error'].iloc[0]
     #return (corr,corre,corre/corr)
 
-def get_pull(file1,file2,subdetector,ieta,iphi,depth):
-    df1=get_df(file1)
-    df2=get_df(file2)
+def get_pull(df1,df2,subdetector,ieta,iphi,depth):
     corr1=df1.query('Subdetector==@subdetector and iEta==@ieta and iPhi==@iphi and Depth==@depth')['Correction'].iloc[0]
     corre1=df1.query('Subdetector==@subdetector and iEta==@ieta and iPhi==@iphi and Depth==@depth')['Error'].iloc[0]
     corr2=df2.query('Subdetector==@subdetector and iEta==@ieta and iPhi==@iphi and Depth==@depth')['Correction'].iloc[0]
@@ -39,9 +37,7 @@ def get_pull(file1,file2,subdetector,ieta,iphi,depth):
     #(corr2,corre2,uncert2)=get_corr_err_uncert(file2,subdetector,ieta,iphi,depth)
     return (corr1-corr2)/math.sqrt(math.pow(corre1,2.0)+math.pow(corre2,2.0))
 
-def get_resid(file1,file2,subdetector,ieta,iphi,depth):
-    df1=get_df(file1)
-    df2=get_df(file2)
+def get_resid(df1,df2,subdetector,ieta,iphi,depth):
     corr1=df1.query('Subdetector==@subdetector and iEta==@ieta and iPhi==@iphi and Depth==@depth')['Correction'].iloc[0]
     corr2=df2.query('Subdetector==@subdetector and iEta==@ieta and iPhi==@iphi and Depth==@depth')['Correction'].iloc[0]
     return 1.0-corr2/corr1
@@ -88,11 +84,13 @@ def correlation_plot(file1,file2):
     for row in df1.itertuples():
         (subdet,ieta,iphi,depth)=(row.Subdetector,row.iEta,row.iPhi,row.Depth)
         corr1=row.Correction
-        corr2=df2.query('Subdetector==@subdet and iEta==@ieta and iPhi==@iphi and Depth==@depth')['Correction'].iloc[0]
-        if(corr2!=0):
-            if (subdet==4) :graphhf.AddPoint(corr1, corr2)
-            if (subdet==2) :graphhe.AddPoint(corr1, corr2)
-            if (subdet==1) :graphhb.AddPoint(corr1, corr2)
+        if(((df2['Subdetector']==subdet) & (df2['iEta']==ieta) & (df2['iPhi']==iphi) & (df2['Depth']==depth)).any()): #need to make sure it exists
+            corr2=df2.query('Subdetector==@subdet and iEta==@ieta and iPhi==@iphi and Depth==@depth')['Correction'].iloc[0]
+            if(corr2!=0):
+                if (subdet==4) :graphhf.AddPoint(corr1, corr2)
+                if (subdet==2) :graphhe.AddPoint(corr1, corr2)
+                if (subdet==1) :graphhb.AddPoint(corr1, corr2)
+        #otherwise, the channel doesn't exist in file 2. This can be handled later in the pulls method.
     canvas = ROOT.TCanvas("canvas", "Scatter Plot", 1800, 1200)
     pearson_r_hb = graphhb.GetCorrelationFactor()
     fit_functionb = ROOT.TF1("fit", "pol1", 0, 10)
@@ -134,7 +132,8 @@ def correlation_plot(file1,file2):
     legend.Draw()
     imagename=outfolder+"correlation_"+get_filename(file1)+get_filename(file2)+"_hf"+".png"
     canvas.SaveAs(imagename)
-def pull_plots(file1,file2,outpulls,outres,depth):
+    
+def pull_plots(file1,file2,outpulls,outres,outliers,depth):
     df1=get_df(file1)
     df2=get_df(file2)
     #plot corrections:
@@ -166,7 +165,7 @@ def pull_plots(file1,file2,outpulls,outres,depth):
             corr1=row1.Correction
             corr2=df2.query('Subdetector==@subdet and iEta==@ieta and iPhi==@iphi and Depth==@depth')['Correction'].iloc[0]
             if(corr2!=0):
-                residual=get_resid(file1,file2,subdet,ieta,iphi,depth)
+                residual=get_resid(df1,df2,subdet,ieta,iphi,depth)
                 match subdet:
                     case 1: residuals_hb.append(residual)
                     case 2: residuals_he.append(residual)
@@ -174,7 +173,7 @@ def pull_plots(file1,file2,outpulls,outres,depth):
                     case _: print("joever")
                 if(subdet==4 and (ieta==29 or ieta==-29)):resid_th2d.SetBinContent(ieta+42,iphi+1,residual)
                 else: resid_th2d.SetBinContent(ieta+42,iphi,residual)
-                pull=get_pull(file1,file2,subdet,ieta,iphi,depth) #Sean indented this line to->
+                pull=get_pull(df1,df2,subdet,ieta,iphi,depth) #Sean indented this line to->
 
                 outpulls.write(str(subdet)+" "+str(ieta)+" "+str(iphi)+' '+str(depth)+' '+str(pull)+'\n')#
                 #print(pull)
@@ -186,6 +185,7 @@ def pull_plots(file1,file2,outpulls,outres,depth):
                     case _: print('joever')#
                 if(subdet==4 and (ieta==29 or ieta==-29)): pulls_th2d.SetBinContent(ieta+42,iphi+1,pull)#
                 else:pulls_th2d.SetBinContent(ieta+42,iphi,pull)
+                if(abs(pull)>4 and abs(residual)>0.12): outliers.write(str(subdet)+" "+str(ieta)+" "+str(iphi)+' '+str(depth)+' '+str(pull)+' '+str(residual)+'\n') #when we have a large pull AND large residual, write to outlier file.
             else:#
                 print(f'Channel from {file1} not in {file2}: {subdetectors[subdet]} ieta {ieta} iphi {iphi} depth {depth}\n') #this line, end of intent
             #We dont need the error unless a channel in 1 file is not present in the other, before indent this just output whenever any line wasnt present in file2, I think. And it was calculating pulls where corr2 was 0...
@@ -357,6 +357,7 @@ def main():
     uncerts1=open(outfolder+'uncerts_'+get_filename(file1)+'.txt','w')
     uncerts2=open(outfolder+'uncerts_'+get_filename(file2)+'.txt','w')
     residuals=open(outfolder+'residuals_f1_'+get_filename(file1)+"_f2_"+get_filename(file2)+'.txt','w')
+    outliers=open(outfolder+'outliers_f1_'+get_filename(file1)+"_f2_"+get_filename(file2)+'.txt','w')
     #corrs1=open('corrs_'+get_filename(file1)+'.txt','w')
     #corrs2=open('corrs_'+get_filename(file2)+'.txt','w')
 
@@ -364,7 +365,7 @@ def main():
     #pull_plots(file1,file2,pulls,residuals,1)
     correlation_plot(file1,file2)
     for depth in range(1,8):
-        pull_plots(file1,file2,pulls,residuals,depth)
+        pull_plots(file1,file2,pulls,residuals,outliers,depth)
         uncert_plots(file1,uncerts1,depth)
         uncert_plots(file2,uncerts2,depth)
         corr_plots(file1,depth)
