@@ -102,7 +102,7 @@ def correlation_plot(file1,file2):
                     graphhb.AddPoint(corr1, corr2)
                     x_minb = min(x_minb, corr1)
                     x_maxb = max(x_maxb, corr1)
-        #otherwise the channel does not exist in file 2. This is handled later in the pull method. 
+        #otherwise the channel does not exist in file 2. This is handled later in the pull method.
     canvas = ROOT.TCanvas("canvas", "Scatter Plot", 1800, 1200)
     xy_lineB = ROOT.TF1("identityB", "x", x_minb, x_maxb)  # y = x
     xy_lineB.SetLineColor(ROOT.kBlack)  # Black color
@@ -162,7 +162,7 @@ def correlation_plot(file1,file2):
     legend.Draw()
     imagename=outfolder+"correlation_"+get_filename(file1)+get_filename(file2)+"_hf"+".png"
     canvas.SaveAs(imagename)
-    
+
 def pull_plots(file1,file2,outpulls,outres,outliers,depth):
     df1=get_df(file1)
     df2=get_df(file2)
@@ -215,7 +215,7 @@ def pull_plots(file1,file2,outpulls,outres,outliers,depth):
                     case _: print('joever')#
                 if(subdet==4 and (ieta==29 or ieta==-29)): pulls_th2d.SetBinContent(ieta+42,iphi+1,pull)#
                 else:pulls_th2d.SetBinContent(ieta+42,iphi,pull)
-                if(abs(pull)>4 and abs(residual)>0.12): outliers.write(str(subdet)+" "+str(ieta)+" "+str(iphi)+' '+str(depth)+' '+str(pull)+' '+str(residual)+'\n') #when we have a large pull AND large residual, write to outlier file.
+                if(abs(pull)>4 and abs(residual)>0.12): outliers.write(str(subdet)+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+" "+str(corr1)+" "+str(corre1)+" "+str(corr2)+" "+str(corre2)+" "+str(pull)+" "+str(residual)+'\n') #when we have a large pull AND large residual, write to outlier file.
             else:#
                 print(f'Channel from {file1} not in {file2}: {subdetectors[subdet]} ieta {ieta} iphi {iphi} depth {depth}\n') #this line, end of intent
             #We dont need the error unless a channel in 1 file is not present in the other, before indent this just output whenever any line wasnt present in file2, I think. And it was calculating pulls where corr2 was 0...
@@ -294,18 +294,18 @@ def pull_plots(file1,file2,outpulls,outres,outliers,depth):
         residuals.GetYaxis().SetTitle("Entries")
         canvas.SaveAs(outfolder+'freq_resid_f1_'+get_filename(file1)+'_f2_'+get_filename(file2)+'_'+res_subdet+'_d'+str(depth)+".png")
         canvas.Close()
-    for res_plot in residuals_1d:
-        plt.figure()
-        plt.hist(res_plot, bins=50, color='skyblue', edgecolor='black',density=True, alpha=0.6)
-        plt.xlabel('Residual')
-        plt.ylabel('Frequency')
-        mu, std = norm.fit(res_plot)
-        xmin, xmax = plt.xlim()
-        x = np.linspace(xmin, xmax, 100)
-        p = norm.pdf(x, mu, std)
-        plt.plot(x, p, 'r--', linewidth=2, label=f'Gaussian fit: $\mu$={mu:.2f}, $\sigma$={std:.2f}')
+    #for res_plot in residuals_1d:
+        #plt.figure()
+        #plt.hist(res_plot, bins=50, color='skyblue', edgecolor='black',density=True, alpha=0.6)
+        #plt.xlabel('Residual')
+        #plt.ylabel('Frequency')
+        #mu, std = norm.fit(res_plot)
+        #xmin, xmax = plt.xlim()
+        #x = np.linspace(xmin, xmax, 100)
+        #p = norm.pdf(x, mu, std)
+        #plt.plot(x, p, 'r--', linewidth=2, label=f'Gaussian fit: $\mu$={mu:.2f}, $\sigma$={std:.2f}')
 
-        plt.savefig('freq_resid_f1_'+file1[:-4]+'_f2'+file2[:-4]+'_'+residuals_1d[res_plot]+'_d'+str(depth)+".png")
+        #plt.savefig('freq_resid_f1_'+file1[:-4]+'_f2'+file2[:-4]+'_'+residuals_1d[res_plot]+'_d'+str(depth)+".png")
     ROOT.gStyle.SetOptStat(0)
     resid_canvas = ROOT.TCanvas("canvas2", "Canvas Title2", 1800, 1200)
     resid_canvas.SetRightMargin(0.15)
