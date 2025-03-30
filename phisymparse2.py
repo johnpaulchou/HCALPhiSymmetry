@@ -2,9 +2,9 @@ import ROOT
 import argparse
 import math
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.stats import norm
+#import numpy as np
+#import matplotlib.pyplot as plt
+#from scipy.stats import norm
 from itertools import chain
 ROOT.gROOT.SetBatch(True)
 import os
@@ -42,8 +42,7 @@ def get_resid(df1,df2,subdetector,ieta,iphi,depth):
     corr2=df2.query('Subdetector==@subdetector and iEta==@ieta and iPhi==@iphi and Depth==@depth')['Correction'].iloc[0]
     return 1.0-corr2/corr1
 
-def corr_plots(file1,depth):
-    df=get_df(file1)
+def corr_plots(df,depth):
     corrs=ROOT.TH2D('corrs','Corrections for Depth '+str(depth),83,-41,41,73,0,72)
     for row in df.itertuples():
         corr=row.Correction
@@ -53,34 +52,32 @@ def corr_plots(file1,depth):
     canvas = ROOT.TCanvas("canvas", "Canvas Title",1800, 1200)
     canvas.SetRightMargin(0.15)
     corrs.Draw("COLZ")
-    imagename=outfolder+get_filename(file1)+"_d"+str(depth)+".png"
+    imagename=outfolder+filename1+"_d"+str(depth)+".png"
     canvas.SaveAs(imagename)
 
-def correlation_plot(file1,file2,rem_ones):
-    df1=get_df(file1)
-    df2=get_df(file2)
+def correlation_plot(df1,df2,rem_ones):
     graphhb = ROOT.TGraph()
     graphhb.SetTitle("Correlation for Barrel")
     graphhb.SetMarkerStyle(20)
     graphhb.SetMarkerSize(0.5)
     graphhb.SetMarkerColor(ROOT.kBlue)
-    graphhb.GetXaxis().SetTitle(get_filename(file1))  # Set X-axis title
-    graphhb.GetYaxis().SetTitle(get_filename(file2))
+    graphhb.GetXaxis().SetTitle(filename1)  # Set X-axis title
+    graphhb.GetYaxis().SetTitle(filename2)
     graphhb.GetXaxis().SetLimits(0, 12)
     graphhe = ROOT.TGraph()
     graphhe.SetTitle("Correlation for Endcap")
     graphhe.SetMarkerStyle(20)
     graphhe.SetMarkerSize(0.5)
     graphhe.SetMarkerColor(ROOT.kBlue)
-    graphhe.GetXaxis().SetTitle(get_filename(file1))  # Set X-axis title
-    graphhe.GetYaxis().SetTitle(get_filename(file2))
+    graphhe.GetXaxis().SetTitle(filename1)  # Set X-axis title
+    graphhe.GetYaxis().SetTitle(filename2)
     graphhf = ROOT.TGraph()
     graphhf.SetTitle("Correlation for Forward")
     graphhf.SetMarkerStyle(20)
     graphhf.SetMarkerSize(0.5)
     graphhf.SetMarkerColor(ROOT.kBlue)
-    graphhf.GetXaxis().SetTitle(get_filename(file1))  # Set X-axis title
-    graphhf.GetYaxis().SetTitle(get_filename(file2))
+    graphhf.GetXaxis().SetTitle(filename1)  # Set X-axis title
+    graphhf.GetYaxis().SetTitle(filename2)
     x_minb, x_maxb = float("inf"), float("-inf")
     x_mine, x_maxe = float("inf"), float("-inf")
     x_minf, x_maxf = float("inf"), float("-inf")
@@ -125,9 +122,9 @@ def correlation_plot(file1,file2,rem_ones):
     legend.AddEntry(fit_functionb, "Linear Fit", "l")
     legend.Draw()
     if rem_ones==True:
-        imagename=outfolder+"correlation_"+get_filename(file1)+get_filename(file2)+"_hb"+"ones_removed"+".png"
+        imagename=outfolder+"correlation_"+filename1+filename2+"_hb"+"ones_removed"+".png"
     else:
-        imagename=outfolder+"correlation_"+get_filename(file1)+get_filename(file2)+"_hb"+".png"
+        imagename=outfolder+"correlation_"+filename1+filename2+"_hb"+".png"
     canvas.SaveAs(imagename)
     xy_lineE = ROOT.TF1("identityE", "x", x_mine, x_maxe)
     xy_lineE.SetLineColor(ROOT.kBlack)  # Black color
@@ -147,9 +144,9 @@ def correlation_plot(file1,file2,rem_ones):
     legend.AddEntry(fit_functione, "Linear Fit", "l")
     legend.Draw()
     if rem_ones==True:
-        imagename=outfolder+"correlation_"+get_filename(file1)+get_filename(file2)+"_he"+"ones_removed"+".png"
+        imagename=outfolder+"correlation_"+filename1+filename2+"_he"+"ones_removed"+".png"
     else:
-        imagename=outfolder+"correlation_"+get_filename(file1)+get_filename(file2)+"_he"+".png"
+        imagename=outfolder+"correlation_"+filename1+filename2+"_he"+".png"
     canvas.SaveAs(imagename)
     xy_lineF = ROOT.TF1("identityF", "x", x_minf, x_maxf)
     xy_lineF.SetLineColor(ROOT.kBlack)  # Black color
@@ -169,14 +166,13 @@ def correlation_plot(file1,file2,rem_ones):
     legend.AddEntry(fit_functionf, "Linear Fit", "l")
     legend.Draw()
     if rem_ones==True:
-        imagename=outfolder+"correlation_"+get_filename(file1)+get_filename(file2)+"_hf"+"ones_removed"+".png"
+        imagename=outfolder+"correlation_"+filename1+filename2+"_hf"+"ones_removed"+".png"
     else:
-        imagename=outfolder+"correlation_"+get_filename(file1)+get_filename(file2)+"_hf"+".png"
+        imagename=outfolder+"correlation_"+filename1+filename2+"_hf"+".png"
     canvas.SaveAs(imagename)
 
-def pull_plots(file1,file2,outpulls,outres,outliers,depth):
-    df1=get_df(file1)
-    df2=get_df(file2)
+def pull_plots(df1,df2,outpulls,outres,outliers,depth):
+    if(not (df1['Depth']==depth).any() or not (df2['Depth']==depth).any()):return 0 #if the depth doesn't exist at all, don't bother
     #plot corrections:
     #plot pulls
     pulls_th2d=ROOT.TH2D('pull_th2d','Pulls for Depth '+str(depth),83,-41,41,73,0,72)
@@ -228,7 +224,7 @@ def pull_plots(file1,file2,outpulls,outres,outliers,depth):
                 else:pulls_th2d.SetBinContent(ieta+42,iphi,pull)
                 if(abs(pull)>4 and abs(residual)>0.12): outliers.write(str(subdet)+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+" "+str(corr1)+" "+str(corre1)+" "+str(corr2)+" "+str(corre2)+" "+str(pull)+" "+str(residual)+'\n') #when we have a large pull AND large residual, write to outlier file.
             else:#
-                print(f'Channel from {file1} not in {file2}: {subdetectors[subdet]} ieta {ieta} iphi {iphi} depth {depth}\n') #this line, end of intent
+                print(f'Channel from {filename1} not in {filename2}: {subdetectors[subdet]} ieta {ieta} iphi {iphi} depth {depth}\n') #this line, end of intent
             #We dont need the error unless a channel in 1 file is not present in the other, before indent this just output whenever any line wasnt present in file2, I think. And it was calculating pulls where corr2 was 0...
 
     pulls_1d=[pulls_hb,pulls_he,pulls_hf]
@@ -256,7 +252,7 @@ def pull_plots(file1,file2,outpulls,outres,outliers,depth):
         gaussian.Draw("same")
         pulls.GetXaxis().SetTitle("Pulls")
         pulls.GetYaxis().SetTitle("Entries")
-        canvas.SaveAs(outfolder+'freq_pulls_f1_'+get_filename(file1)+'_f2_'+get_filename(file2)+'_'+pull_subdet+'_d'+str(depth)+".png")
+        canvas.SaveAs(outfolder+'freq_pulls_f1_'+filename1+'_f2_'+filename2+'_'+pull_subdet+'_d'+str(depth)+".png")
         canvas.Close()
 
     ROOT.gStyle.SetOptStat(0)
@@ -264,7 +260,7 @@ def pull_plots(file1,file2,outpulls,outres,outliers,depth):
     pulls_canvas.SetRightMargin(0.15)
     pulls_th2d.SetMinimum(min(chain(pulls_hb,pulls_he,pulls_hf)))
     pulls_th2d.Draw('COLZ')
-    pulls_canvas.SaveAs(outfolder+'th2d_pulls_f1_'+get_filename(file1)+'_f2_'+get_filename(file2)+'_d'+str(depth)+'.png')
+    pulls_canvas.SaveAs(outfolder+'th2d_pulls_f1_'+filename1+'_f2_'+filename2+'_d'+str(depth)+'.png')
     pulls_canvas.Close()
 
     residuals_1d=[residuals_hb,residuals_he,residuals_hf]
@@ -290,7 +286,7 @@ def pull_plots(file1,file2,outpulls,outres,outliers,depth):
         gaussian.Draw("same")
         residuals_log.GetXaxis().SetTitle("Residuals")
         residuals_log.GetYaxis().SetTitle("Entries")
-        canvas.SaveAs(outfolder+'freq_resid_f1_'+get_filename(file1)+'_f2_'+get_filename(file2)+'_'+res_subdet+'_d'+str(depth)+"log"+".png")
+        canvas.SaveAs(outfolder+'freq_resid_f1_'+filename1+'_f2_'+filename2+'_'+res_subdet+'_d'+str(depth)+"log"+".png")
         canvas.Close()
 
         gaussian = ROOT.TF1("gaussian2", "gaus", -0.15, 0.15)
@@ -303,7 +299,7 @@ def pull_plots(file1,file2,outpulls,outres,outliers,depth):
         gaussian.Draw("same")
         residuals.GetXaxis().SetTitle("Residuals")
         residuals.GetYaxis().SetTitle("Entries")
-        canvas.SaveAs(outfolder+'freq_resid_f1_'+get_filename(file1)+'_f2_'+get_filename(file2)+'_'+res_subdet+'_d'+str(depth)+".png")
+        canvas.SaveAs(outfolder+'freq_resid_f1_'+filename1+'_f2_'+filename2+'_'+res_subdet+'_d'+str(depth)+".png")
         canvas.Close()
     #for res_plot in residuals_1d:
         #plt.figure()
@@ -322,7 +318,7 @@ def pull_plots(file1,file2,outpulls,outres,outliers,depth):
     resid_canvas.SetRightMargin(0.15)
     resid_th2d.SetMinimum(min(chain(residuals_hb,residuals_he,residuals_hf)))
     resid_th2d.Draw('COLZ')
-    resid_canvas.SaveAs(outfolder+'th2d_resid_f1_'+get_filename(file1)+'_f2_'+get_filename(file2)+'_d'+str(depth)+'.png')
+    resid_canvas.SaveAs(outfolder+'th2d_resid_f1_'+filename1+'_f2_'+filename2+'_d'+str(depth)+'.png')
     resid_canvas.Close()
 
     pulls_th2d.SetTitle('Pulls for Depth '+str(depth)+' within +-5')
@@ -331,7 +327,7 @@ def pull_plots(file1,file2,outpulls,outres,outliers,depth):
     zoomed_pulls_canvas = ROOT.TCanvas("canvas3", "Canvas Title",1800, 1200)
     zoomed_pulls_canvas.SetRightMargin(0.15)
     pulls_th2d.Draw('COLZ')
-    zoomed_pulls_canvas.SaveAs(outfolder+'th2d_pulls_5_f1_'+get_filename(file1)+'_f2_'+get_filename(file2)+'_d'+str(depth)+'.png')
+    zoomed_pulls_canvas.SaveAs(outfolder+'th2d_pulls_5_f1_'+filename1+'_f2_'+filename2+'_d'+str(depth)+'.png')
     zoomed_pulls_canvas.Close()
 
     pulls_th2d.SetTitle('Pulls for Depth '+str(depth)+' within +-10')
@@ -340,7 +336,7 @@ def pull_plots(file1,file2,outpulls,outres,outliers,depth):
     zoomed_pulls_canvas1 = ROOT.TCanvas("canvas4", "Canvas Title",1800, 1200)
     zoomed_pulls_canvas1.SetRightMargin(0.15)
     pulls_th2d.Draw('COLZ')
-    zoomed_pulls_canvas1.SaveAs(outfolder+'th2d_pulls_10_f1_'+get_filename(file1)+'_f2_'+get_filename(file2)+'_d'+str(depth)+'.png')
+    zoomed_pulls_canvas1.SaveAs(outfolder+'th2d_pulls_10_f1_'+filename1+'_f2_'+filename2+'_d'+str(depth)+'.png')
     zoomed_pulls_canvas1.Close()
 
     resid_th2d.SetTitle('Residuals for Depth '+str(depth)+' within +-0.15')
@@ -349,12 +345,11 @@ def pull_plots(file1,file2,outpulls,outres,outliers,depth):
     zoomed_resid_canvas = ROOT.TCanvas("canvas5", "Canvas Title", 1800, 1200)
     zoomed_resid_canvas.SetRightMargin(0.15)
     resid_th2d.Draw('COLZ')
-    zoomed_resid_canvas.SaveAs(outfolder+'th2d_resid_015_f1_'+get_filename(file1)+'_f2_'+get_filename(file2)+'_d'+str(depth)+'.png')
+    zoomed_resid_canvas.SaveAs(outfolder+'th2d_resid_015_f1_'+filename1+'_f2_'+filename2+'_d'+str(depth)+'.png')
     zoomed_resid_canvas.Close()
 
 
-def uncert_plots(file1,outfile,depth):
-    df=get_df(file1)
+def uncert_plots(df,outfile,depth):
     uncerts=[]
     unc_hist=ROOT.TH2D('dep1','Relative Uncertainty at Depth '+str(depth),83,-41,41,72,0,72)
     for row in df.itertuples():
@@ -368,7 +363,7 @@ def uncert_plots(file1,outfile,depth):
     canvas = ROOT.TCanvas("canvas", "Canvas Title", 1800, 1200)
     canvas.SetRightMargin(0.15)
     unc_hist.Draw("COLZ")
-    imagename=outfolder+"uncert_"+get_filename(file1)+"_d"+str(depth)+".png"
+    imagename=outfolder+"uncert_"+filename1+"_d"+str(depth)+".png"
     canvas.SaveAs(imagename)
 
 def main():
@@ -388,30 +383,37 @@ def main():
     ROOT.gStyle.SetOptStat(0)
     file1=args.file1
     file2=args.file2
+
+    global filename1,filename2 #get pure filenames to use globally for new output filenames
+    filename1=get_filename(file1)
+    filename2=get_filename(file2)
+
+    df1=get_df(file1) #get dfs
+    df2=get_df(file2)
     #iter_file = "Run2023_Iter.txt"
     #iter_file='corrs_all_egamma.txt'
     #mom_file="mom.txt"
     #it1='corrs_all_EGAMMA0_2024I.txt'
 
     #text outputs. change as appropriate.
-    pulls=open(outfolder+'pulls_f1_'+get_filename(file1)+"_f2_"+get_filename(file2)+'.txt','w')
-    uncerts1=open(outfolder+'uncerts_'+get_filename(file1)+'.txt','w')
-    uncerts2=open(outfolder+'uncerts_'+get_filename(file2)+'.txt','w')
-    residuals=open(outfolder+'residuals_f1_'+get_filename(file1)+"_f2_"+get_filename(file2)+'.txt','w')
-    outliers=open(outfolder+'outliers_f1_'+get_filename(file1)+"_f2_"+get_filename(file2)+'.txt','w')
+    pulls=open(outfolder+'pulls_f1_'+filename1+"_f2_"+filename2+'.txt','w')
+    uncerts1=open(outfolder+'uncerts_'+filename1+'.txt','w')
+    uncerts2=open(outfolder+'uncerts_'+filename2+'.txt','w')
+    residuals=open(outfolder+'residuals_f1_'+filename1+"_f2_"+filename2+'.txt','w')
+    outliers=open(outfolder+'outliers_f1_'+filename1+"_f2_"+filename2+'.txt','w')
     #corrs1=open('corrs_'+get_filename(file1)+'.txt','w')
     #corrs2=open('corrs_'+get_filename(file2)+'.txt','w')
 
     #uncert_plots(iter_file,1)
     #pull_plots(file1,file2,pulls,residuals,1)
-    correlation_plot(file1,file2,False)
-    correlation_plot(file1,file2,True)
+    correlation_plot(df1,df2,False)
+    correlation_plot(df1,df2,True)
     for depth in range(1,8):
-        pull_plots(file1,file2,pulls,residuals,outliers,depth)
-        uncert_plots(file1,uncerts1,depth)
-        uncert_plots(file2,uncerts2,depth)
-        corr_plots(file1,depth)
-        corr_plots(file2,depth)
+        pull_plots(df1,df2,pulls,residuals,outliers,depth)
+        uncert_plots(df1,uncerts1,depth)
+        uncert_plots(df2,uncerts2,depth)
+        corr_plots(df1,depth)
+        corr_plots(df2,depth)
 
     pulls.close()
     uncerts1.close()
