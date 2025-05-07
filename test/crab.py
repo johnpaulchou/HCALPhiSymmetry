@@ -10,7 +10,7 @@ config.General.workArea = ''
 config.section_("JobType")
 config.JobType.pluginName = 'Analysis'
 config.JobType.psetName = 'd101XphiSymRECO.py'
-config.JobType.inputFiles = ['merged_new.json']
+#config.JobType.inputFiles = ['merged_new.json']
 config.JobType.maxMemoryMB = 3000
 
 config.section_("Data")
@@ -41,6 +41,3 @@ config.section_("Site")
 config.Site.storageSite = 'T3_US_FNALLPC'
 #config.Site.whitelist = ['T2_CH_CERN','T2_US_Caltech','T2_UK_London_IC','T2_US_Purdue','T2_US_Nebraska']
 #config.Site.whitelist = ['T2_CH_CERN','T2_US_Caltech','T2_UK_London_IC']
-
-
-
