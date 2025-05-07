@@ -26,8 +26,8 @@ process.phaseHF = cms.EDAnalyzer ("phiSym",
                                   textFile = cms.untracked.string('yhisto_6.txt'),
                                   hfreco =  cms.InputTag("hfreco"),
                                   triggerResults = cms.InputTag("TriggerResults", "", "HLT"),
-                                  triggerNamesSingleMu = cms.untracked.vstring("HLT_IsoMu24", "HLT_Mu50"),
-                                  triggerNamesDoubleMu = cms.untracked.vstring("HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ"),
+                                  #triggerNamesSingleMu = cms.untracked.vstring("HLT_IsoMu24", "HLT_Mu50"),
+                                 # triggerNamesDoubleMu = cms.untracked.vstring("HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ"),
                                   hbhereco = cms.InputTag("hbhereco")
  )
 
