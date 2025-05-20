@@ -42,21 +42,19 @@ def get_resid(df1,df2,subdetector,ieta,iphi,depth):
     corr2=df2.query('Subdetector==@subdetector and iEta==@ieta and iPhi==@iphi and Depth==@depth')['Correction'].iloc[0]
     return 1.0-corr2/corr1
 
-def corr_plots(df,depth):
-    corrs=ROOT.TH2D('corrs','Corrections for Depth '+str(depth),83,-41,41,73,0,72)
+def corr_plots(df,filename,depth):
+    corrs=ROOT.TH2D('corrs_f_'+filename+'_d'+str(depth),'Corrections for Depth '+str(depth),83,-41,41,73,0,72)
     for row in df.itertuples():
         corr=row.Correction
         if (row.Depth!=depth):continue
         if(row.Subdetector==4 and (row.iEta==29 or row.iEta==-29)): corrs.SetBinContent(row.iEta+42,row.iPhi+1,corr)
         else:corrs.SetBinContent(row.iEta+42,row.iPhi,corr)
-    canvas = ROOT.TCanvas("canvas", "Canvas Title",1800, 1200)
-    canvas.SetRightMargin(0.15)
-    corrs.Draw("COLZ")
-    imagename=outfolder+filename1+"_d"+str(depth)+".png"
-    canvas.SaveAs(imagename)
+    outroot.WriteObject(corrs,corrs.GetName())
 
 def correlation_plot(df1,df2,rem_ones):
     graphhb = ROOT.TGraph()
+    if rem_ones: graphhb.SetName('correlation_f1_'+filename1+"_f2_"+filename2+'_hb_ones_removed')
+    else: graphhb.SetName('correlation_f1_'+filename1+"_f2_"+filename2+'_hb')
     graphhb.SetTitle("Correlation for Barrel")
     graphhb.SetMarkerStyle(20)
     graphhb.SetMarkerSize(0.5)
@@ -65,6 +63,8 @@ def correlation_plot(df1,df2,rem_ones):
     graphhb.GetYaxis().SetTitle(filename2)
     graphhb.GetXaxis().SetLimits(0, 12)
     graphhe = ROOT.TGraph()
+    if rem_ones: graphhe.SetName('correlation_f1_'+filename1+"_f2_"+filename2+'_he_ones_removed')
+    else: graphhe.SetName('correlation_f1_'+filename1+"_f2_"+filename2+'_he')
     graphhe.SetTitle("Correlation for Endcap")
     graphhe.SetMarkerStyle(20)
     graphhe.SetMarkerSize(0.5)
@@ -72,6 +72,8 @@ def correlation_plot(df1,df2,rem_ones):
     graphhe.GetXaxis().SetTitle(filename1)  # Set X-axis title
     graphhe.GetYaxis().SetTitle(filename2)
     graphhf = ROOT.TGraph()
+    if rem_ones: graphhf.SetName('correlation_f1_'+filename1+"_f2_"+filename2+'_hf_ones_removed')
+    else: graphhf.SetName('correlation_f1_'+filename1+"_f2_"+filename2+'_hf')
     graphhf.SetTitle("Correlation for Forward")
     graphhf.SetMarkerStyle(20)
     graphhf.SetMarkerSize(0.5)
@@ -102,81 +104,16 @@ def correlation_plot(df1,df2,rem_ones):
                     x_minb = min(x_minb, corr1)
                     x_maxb = max(x_maxb, corr1)
         #otherwise the channel does not exist in file 2. This is handled later in the pull method.
-    canvas = ROOT.TCanvas("canvas", "Scatter Plot", 1800, 1200)
-    xy_lineB = ROOT.TF1("identityB", "x", x_minb, x_maxb)  # y = x
-    xy_lineB.SetLineColor(ROOT.kBlack)  # Black color
-    xy_lineB.SetLineWidth(2)  # Line thickness
-    #xy_lineB.SetLineStyle(3)  # Dotted line (ROOT style 3)
-    pearson_r_hb = graphhb.GetCorrelationFactor()
-    fit_functionb = ROOT.TF1("fit", "pol1", 0, 10)
-    graphhb.Fit(fit_functionb, "Q")
-    graphhb.Draw("AP")
-    xy_lineB.Draw("SAME")
-    legend = ROOT.TLegend(0.15, 0.75, 0.4, 0.85)
-    legend.SetFillStyle(0)
-    legend.SetBorderSize(0)
-    legend.SetTextSize(0.03)
-    dummy_graph = ROOT.TGraph()  # Invisible graph
-    legend.AddEntry(dummy_graph, f"#rho = {pearson_r_hb:.4f}", "")
-    legend.AddEntry(xy_lineB, "y = x", "l")  # "l" = line
-    legend.AddEntry(fit_functionb, "Linear Fit", "l")
-    legend.Draw()
-    if rem_ones==True:
-        imagename=outfolder+"correlation_"+filename1+filename2+"_hb"+"ones_removed"+".png"
-    else:
-        imagename=outfolder+"correlation_"+filename1+filename2+"_hb"+".png"
-    canvas.SaveAs(imagename)
-    xy_lineE = ROOT.TF1("identityE", "x", x_mine, x_maxe)
-    xy_lineE.SetLineColor(ROOT.kBlack)  # Black color
-    xy_lineE.SetLineWidth(2)  # Line thickness
-    #xy_lineE.SetLineStyle(3)  # Dotted line (ROOT style 3)
-    pearson_r_he = graphhe.GetCorrelationFactor()
-    fit_functione = ROOT.TF1("fit", "pol1", 0, 10)
-    graphhe.Fit(fit_functione, "Q")
-    graphhe.Draw("AP")
-    xy_lineE.Draw("SAME")
-    legend = ROOT.TLegend(0.15, 0.75, 0.4, 0.85)
-    legend.SetFillStyle(0)
-    legend.SetBorderSize(0)
-    legend.SetTextSize(0.03)
-    legend.AddEntry(dummy_graph, f"#rho = {pearson_r_he:.4f}", "")
-    legend.AddEntry(xy_lineE, "y = x", "l")  # "l" = line
-    legend.AddEntry(fit_functione, "Linear Fit", "l")
-    legend.Draw()
-    if rem_ones==True:
-        imagename=outfolder+"correlation_"+filename1+filename2+"_he"+"ones_removed"+".png"
-    else:
-        imagename=outfolder+"correlation_"+filename1+filename2+"_he"+".png"
-    canvas.SaveAs(imagename)
-    xy_lineF = ROOT.TF1("identityF", "x", x_minf, x_maxf)
-    xy_lineF.SetLineColor(ROOT.kBlack)  # Black color
-    xy_lineF.SetLineWidth(2)  # Line thickness
-    #xy_lineF.SetLineStyle(3)  # Dotted line (ROOT style 3)
-    pearson_r_hf = graphhf.GetCorrelationFactor()
-    fit_functionf = ROOT.TF1("fit", "pol1", 0, 10)
-    graphhf.Fit(fit_functionf, "Q")
-    graphhf.Draw("AP")
-    xy_lineF.Draw("SAME")
-    legend = ROOT.TLegend(0.15, 0.75, 0.4, 0.85)
-    legend.SetFillStyle(0)
-    legend.SetBorderSize(0)
-    legend.SetTextSize(0.03)
-    legend.AddEntry(dummy_graph, f"#rho = {pearson_r_hf:.4f}", "")
-    legend.AddEntry(xy_lineF, "y = x", "l")  # "l" = line
-    legend.AddEntry(fit_functionf, "Linear Fit", "l")
-    legend.Draw()
-    if rem_ones==True:
-        imagename=outfolder+"correlation_"+filename1+filename2+"_hf"+"ones_removed"+".png"
-    else:
-        imagename=outfolder+"correlation_"+filename1+filename2+"_hf"+".png"
-    canvas.SaveAs(imagename)
+    outroot.WriteObject(graphhb,graphhb.GetName())
+    outroot.WriteObject(graphhe,graphhe.GetName())
+    outroot.WriteObject(graphhf,graphhf.GetName())
 
 def pull_plots(df1,df2,outpulls,outres,outliers,depth):
     if(not (df1['Depth']==depth).any() or not (df2['Depth']==depth).any()):return 0 #if the depth doesn't exist at all, don't bother
     #plot corrections:
     #plot pulls
-    pulls_th2d=ROOT.TH2D('pull_th2d','Pulls for Depth '+str(depth),83,-41,41,73,0,72)
-    resid_th2d=ROOT.TH2D('resid_th2d','Residuals for Depth '+str(depth),83,-41,41,73,0,72)
+    pulls_th2d=ROOT.TH2D('pull_th2d_d'+str(depth),'Pulls for Depth '+str(depth),83,-41,41,73,0,72)
+    resid_th2d=ROOT.TH2D('resid_th2d_d'+str(depth),'Residuals for Depth '+str(depth),83,-41,41,73,0,72)
 
     residuals_hb=[]
     residuals_he=[]
@@ -231,37 +168,21 @@ def pull_plots(df1,df2,outpulls,outres,outliers,depth):
     for pull_list in pulls_1d:
         if pull_list==[]:continue
         pull_subdet=[]
-        ROOT.gStyle.SetOptStat(1111)  # Display stats (1 for entries, 1 for mean, 1 for RMS, etc.)
-        ROOT.gStyle.SetOptFit(1111)
         if pull_list==pulls_hb:
             pull_subdet='HB'
-            pulls = ROOT.TH1D("pulls_1d_"+pull_subdet, "Pulls for "+pull_subdet + ' Depth '+str(depth), 50, -5, 5)
-        if pull_list==pulls_he:
+            pulls = ROOT.TH1D("pulls_1d_"+pull_subdet+"_d"+str(depth), "Pulls for "+pull_subdet + ' Depth '+str(depth), 50, -5, 5)
+        elif pull_list==pulls_he:
             pull_subdet='HE'
-            pulls = ROOT.TH1D("pulls_1d_"+pull_subdet, "Pulls for "+pull_subdet + ' Depth '+str(depth), 50, -5, 5)
-        elif pull_list==pulls_hf:
+            pulls = ROOT.TH1D("pulls_1d_"+pull_subdet+"_d"+str(depth), "Pulls for "+pull_subdet + ' Depth '+str(depth), 50, -5, 5)
+        else: #elif pull_list==pulls_hf:
             pull_subdet='HF'
-            pulls = ROOT.TH1D("pulls_1d_"+pull_subdet, "Pulls for "+pull_subdet + ' Depth '+str(depth), 50, -10, 10)
+            pulls = ROOT.TH1D("pulls_1d_"+pull_subdet+"_d"+str(depth), "Pulls for "+pull_subdet + ' Depth '+str(depth), 50, -10, 10)
         for value in pull_list:
             pulls.Fill(value)
-        gaussian = ROOT.TF1("gaussian", "gaus", min(pull_list), max(pull_list))
-        pulls.Fit(gaussian)
-        canvas = ROOT.TCanvas("canvas", "Histogram with Gaussian Fit", 1800, 1200)
-        canvas.SetRightMargin(0.15)
-        pulls.Draw()
-        gaussian.Draw("same")
-        pulls.GetXaxis().SetTitle("Pulls")
-        pulls.GetYaxis().SetTitle("Entries")
-        canvas.SaveAs(outfolder+'freq_pulls_f1_'+filename1+'_f2_'+filename2+'_'+pull_subdet+'_d'+str(depth)+".png")
-        canvas.Close()
+        outroot.WriteObject(pulls,pulls.GetName())
 
-    ROOT.gStyle.SetOptStat(0)
-    pulls_canvas = ROOT.TCanvas("canvas", "Canvas Title1", 1800, 1200)
-    pulls_canvas.SetRightMargin(0.15)
     pulls_th2d.SetMinimum(min(chain(pulls_hb,pulls_he,pulls_hf)))
-    pulls_th2d.Draw('COLZ')
-    pulls_canvas.SaveAs(outfolder+'th2d_pulls_f1_'+filename1+'_f2_'+filename2+'_d'+str(depth)+'.png')
-    pulls_canvas.Close()
+    outroot.WriteObject(pulls_th2d,pulls_th2d.GetName())
 
     residuals_1d=[residuals_hb,residuals_he,residuals_hf]
 
@@ -270,83 +191,16 @@ def pull_plots(df1,df2,outpulls,outres,outliers,depth):
         res_subdet='HB'
         if res_list==residuals_he: res_subdet='HE'
         elif res_list==residuals_hf: res_subdet='HF'
-        residuals_log = ROOT.TH1D("res_1d_"+res_subdet, "Residuals for "+res_subdet + ' Depth '+ str(depth), 50, min(res_list), max(res_list))
-        residuals = ROOT.TH1D("res_1d_"+res_subdet, "Residuals for "+res_subdet + ' Depth '+ str(depth), 50, -0.15, 0.15)
+        residuals_log = ROOT.TH1D("res_1d_"+res_subdet+"_d"+str(depth)+"_log", "Log(residual) for "+res_subdet + ' Depth '+ str(depth), 50, min(res_list), max(res_list))
+        residuals = ROOT.TH1D("res_1d_"+res_subdet+"_d"+str(depth), "Residuals for "+res_subdet + ' Depth '+ str(depth), 50, -0.15, 0.15)
         for value in res_list:
             residuals.Fill(value)
             residuals_log.Fill(value)
-        gaussian = ROOT.TF1("gaussian2", "gaus", min(res_list), max(res_list))
-        residuals_log.Fit(gaussian)
-        ROOT.gStyle.SetOptStat(1111)  # Display stats (1 for entries, 1 for mean, 1 for RMS, etc.)
-        ROOT.gStyle.SetOptFit(1111)
-        canvas = ROOT.TCanvas("canvas", "Histogram with Gaussian Fit", 1800, 1200)
-        canvas.SetRightMargin(0.15)
-        canvas.SetLogy()
-        residuals_log.Draw()
-        gaussian.Draw("same")
-        residuals_log.GetXaxis().SetTitle("Residuals")
-        residuals_log.GetYaxis().SetTitle("Entries")
-        canvas.SaveAs(outfolder+'freq_resid_f1_'+filename1+'_f2_'+filename2+'_'+res_subdet+'_d'+str(depth)+"log"+".png")
-        canvas.Close()
+        outroot.WriteObject(residuals_log,residuals_log.GetName())
+        outroot.WriteObject(residuals,residuals.GetName())
 
-        gaussian = ROOT.TF1("gaussian2", "gaus", -0.15, 0.15)
-        residuals.Fit(gaussian)
-        ROOT.gStyle.SetOptStat(1111)  # Display stats (1 for entries, 1 for mean, 1 for RMS, etc.)
-        ROOT.gStyle.SetOptFit(1111)
-        canvas = ROOT.TCanvas("canvas", "Histogram with Gaussian Fit", 1800, 1200)
-        canvas.SetRightMargin(0.15)
-        residuals.Draw()
-        gaussian.Draw("same")
-        residuals.GetXaxis().SetTitle("Residuals")
-        residuals.GetYaxis().SetTitle("Entries")
-        canvas.SaveAs(outfolder+'freq_resid_f1_'+filename1+'_f2_'+filename2+'_'+res_subdet+'_d'+str(depth)+".png")
-        canvas.Close()
-    #for res_plot in residuals_1d:
-        #plt.figure()
-        #plt.hist(res_plot, bins=50, color='skyblue', edgecolor='black',density=True, alpha=0.6)
-        #plt.xlabel('Residual')
-        #plt.ylabel('Frequency')
-        #mu, std = norm.fit(res_plot)
-        #xmin, xmax = plt.xlim()
-        #x = np.linspace(xmin, xmax, 100)
-        #p = norm.pdf(x, mu, std)
-        #plt.plot(x, p, 'r--', linewidth=2, label=f'Gaussian fit: $\mu$={mu:.2f}, $\sigma$={std:.2f}')
-
-        #plt.savefig('freq_resid_f1_'+file1[:-4]+'_f2'+file2[:-4]+'_'+residuals_1d[res_plot]+'_d'+str(depth)+".png")
-    ROOT.gStyle.SetOptStat(0)
-    resid_canvas = ROOT.TCanvas("canvas2", "Canvas Title2", 1800, 1200)
-    resid_canvas.SetRightMargin(0.15)
     resid_th2d.SetMinimum(min(chain(residuals_hb,residuals_he,residuals_hf)))
-    resid_th2d.Draw('COLZ')
-    resid_canvas.SaveAs(outfolder+'th2d_resid_f1_'+filename1+'_f2_'+filename2+'_d'+str(depth)+'.png')
-    resid_canvas.Close()
-
-    pulls_th2d.SetTitle('Pulls for Depth '+str(depth)+' within +-5')
-    pulls_th2d.SetMaximum(5.0)
-    pulls_th2d.SetMinimum(-5.0)
-    zoomed_pulls_canvas = ROOT.TCanvas("canvas3", "Canvas Title",1800, 1200)
-    zoomed_pulls_canvas.SetRightMargin(0.15)
-    pulls_th2d.Draw('COLZ')
-    zoomed_pulls_canvas.SaveAs(outfolder+'th2d_pulls_5_f1_'+filename1+'_f2_'+filename2+'_d'+str(depth)+'.png')
-    zoomed_pulls_canvas.Close()
-
-    pulls_th2d.SetTitle('Pulls for Depth '+str(depth)+' within +-10')
-    pulls_th2d.SetMaximum(10.0)
-    pulls_th2d.SetMinimum(-10.0)
-    zoomed_pulls_canvas1 = ROOT.TCanvas("canvas4", "Canvas Title",1800, 1200)
-    zoomed_pulls_canvas1.SetRightMargin(0.15)
-    pulls_th2d.Draw('COLZ')
-    zoomed_pulls_canvas1.SaveAs(outfolder+'th2d_pulls_10_f1_'+filename1+'_f2_'+filename2+'_d'+str(depth)+'.png')
-    zoomed_pulls_canvas1.Close()
-
-    resid_th2d.SetTitle('Residuals for Depth '+str(depth)+' within +-0.15')
-    resid_th2d.SetMaximum(0.15)
-    resid_th2d.SetMinimum(-0.15)
-    zoomed_resid_canvas = ROOT.TCanvas("canvas5", "Canvas Title", 1800, 1200)
-    zoomed_resid_canvas.SetRightMargin(0.15)
-    resid_th2d.Draw('COLZ')
-    zoomed_resid_canvas.SaveAs(outfolder+'th2d_resid_015_f1_'+filename1+'_f2_'+filename2+'_d'+str(depth)+'.png')
-    zoomed_resid_canvas.Close()
+    outroot.WriteObject(resid_th2d,resid_th2d.GetName())
 
 
 def uncert_plots(df,outfile,depth):
@@ -360,11 +214,125 @@ def uncert_plots(df,outfile,depth):
         else: unc_hist.SetBinContent(row.iEta+42,row.iPhi,corre/corr)
         uncerts.append(corre/corr)
         outfile.write(str(row.Subdetector)+' '+str(row.iEta)+' '+str(row.iPhi)+' '+str(depth)+' '+str(corr)+' '+str(corre/corr)+'\n')
+    outroot.WriteObject(unc_hist,unc_hist.GetName())
     canvas = ROOT.TCanvas("canvas", "Canvas Title", 1800, 1200)
     canvas.SetRightMargin(0.15)
     unc_hist.Draw("COLZ")
     imagename=outfolder+"uncert_"+filename1+"_d"+str(depth)+".png"
     canvas.SaveAs(imagename)
+
+def draw_hist(hist): #for correlation plot it takes TGraph, not hist, BTW.
+    histname=hist.GetName()
+
+    if 'd1' in histname: depth=1
+    elif 'd2' in histname: depth=2
+    elif 'd3' in histname: depth=3
+    elif 'd4' in histname: depth=4
+    elif 'd5' in histname: depth=5
+    elif 'd6' in histname: depth=6
+    else: depth=7
+
+    if '1d' in histname:
+        ROOT.gStyle.SetOptStat(1111)
+        ROOT.gStyle.SetOptFit(1111)
+        gaussian = ROOT.TF1("gaussian", "gaus", hist.GetMinimum(), hist.GetMaximum())
+        if 'res' in histname and 'log' not in histname: gaussian=ROOT.TF1('gaussian','gaus',-0.15,0.15)
+        hist.Fit(gaussian)
+        canvas = ROOT.TCanvas("canvas", "Histogram with Gaussian Fit", 1800, 1200)
+        canvas.SetRightMargin(0.15)
+        if 'log' in histname: canvas.SetLogy()
+        hist.Draw()
+        gaussian.Draw("same")
+        if 'res' in histname: hist.GetXaxis().SetTitle('Residuals')
+        elif 'pull' in histname: hist.GetXaxis().SetTitle('Pulls')
+        hist.GetYaxis().SetTitle('Entries')
+        if 'HB' in histname: subdet='HB'
+        elif 'HE' in histname: subdet='HE'
+        else: subdet='HF'
+        if 'pull' in histname: canvas.SaveAs(outfolder+'freq_pulls_f1_'+filename1+'_f2_'+filename2+'_'+subdet+'_d'+str(depth)+".png")
+        elif 'res' in histname:
+            if 'log' in histname: canvas.SaveAs(outfolder+'freq_resid_f1_'+filename1+'_f2_'+filename2+'_'+subdet+'_d'+str(depth)+"_log.png")
+            else: canvas.SaveAs(outfolder+'freq_resid_f1_'+filename1+'_f2_'+filename2+'_'+subdet+'_d'+str(depth)+".png")
+        canvas.Close()
+    elif 'th2d' in histname:
+        ROOT.gStyle.SetOptStat(0)
+        canvas = ROOT.TCanvas("canvas", "Histogram with Gaussian Fit", 1800, 1200)
+        canvas.SetRightMargin(0.15)
+        hist.Draw('COLZ')
+        if 'pull' in histname:
+            canvas.SaveAs(outfolder+'th2d_pulls_f1_'+filename1+'_f2_'+filename2+'_d'+str(depth)+'.png')
+            canvas.Close()
+            hist.SetTitle('Pulls for Depth '+str(depth)+' within +-5')
+            hist.SetMaximum(5.0)
+            hist.SetMinimum(-5.0)
+            zoomed_pulls_canvas = ROOT.TCanvas("canvas3", "Canvas Title",1800, 1200)
+            zoomed_pulls_canvas.SetRightMargin(0.15)
+            hist.Draw('COLZ')
+            zoomed_pulls_canvas.SaveAs(outfolder+'th2d_pulls_5_f1_'+filename1+'_f2_'+filename2+'_d'+str(depth)+'.png')
+            zoomed_pulls_canvas.Close()
+
+            hist.SetTitle('Pulls for Depth '+str(depth)+' within +-10')
+            hist.SetMaximum(10.0)
+            hist.SetMinimum(-10.0)
+            zoomed_pulls_canvas1 = ROOT.TCanvas("canvas4", "Canvas Title",1800, 1200)
+            zoomed_pulls_canvas1.SetRightMargin(0.15)
+            hist.Draw('COLZ')
+            zoomed_pulls_canvas1.SaveAs(outfolder+'th2d_pulls_10_f1_'+filename1+'_f2_'+filename2+'_d'+str(depth)+'.png')
+            zoomed_pulls_canvas1.Close()
+        elif 'res' in histname:
+            canvas.SaveAs(outfolder+'th2d_resid_f1_'+filename1+'_f2_'+filename2+'_d'+str(depth)+'.png')
+            canvas.Close()
+            hist.SetTitle('Residuals for Depth '+str(depth)+' within +-0.15')
+            hist.SetMaximum(0.15)
+            hist.SetMinimum(-0.15)
+            zoomed_resid_canvas = ROOT.TCanvas("canvas5", "Canvas Title", 1800, 1200)
+            zoomed_resid_canvas.SetRightMargin(0.15)
+            hist.Draw('COLZ')
+            zoomed_resid_canvas.SaveAs(outfolder+'th2d_resid_015_f1_'+filename1+'_f2_'+filename2+'_d'+str(depth)+'.png')
+            zoomed_resid_canvas.Close()
+        else: #just to be safe
+            canvas.Close()
+    elif 'uncert' in histname:
+        ROOT.gStyle.SetOptStat(0)
+        canvas = ROOT.TCanvas("canvas", "Canvas Title", 1800, 1200)
+        canvas.SetRightMargin(0.15)
+        hist.Draw("COLZ")
+        if filename1 in histname: imagename=outfolder+"uncert_f_"+filename1+"_d"+str(depth)+".png"
+        else: imagename=outfolder+"uncert_f_"+filename2+"_d"+str(depth)+".png"
+        canvas.SaveAs(imagename)
+        canvas.Close()
+    elif 'correlation' in histname: #this uses TGraph 
+        ROOT.gStyle.SetOptStat(0)
+        canvas = ROOT.TCanvas("canvas", "Scatter Plot", 1800, 1200)
+        xy_line = ROOT.TF1("identity", "x", hist.GetMinimum(), hist.GetMaximum())  # y = x
+        xy_line.SetLineColor(ROOT.kBlack)  # Black color
+        xy_line.SetLineWidth(2)  # Line thickness
+        pearson_r = hist.GetCorrelationFactor()
+        fit_function = ROOT.TF1("fit", "pol1", 0, 10)
+        hist.Fit(fit_function, "Q")
+        hist.Draw("AP")
+        xy_line.Draw("SAME")
+        legend = ROOT.TLegend(0.15, 0.75, 0.4, 0.85)
+        legend.SetFillStyle(0)
+        legend.SetBorderSize(0)
+        legend.SetTextSize(0.03)
+        dummy_graph = ROOT.TGraph()  # Invisible graph
+        legend.AddEntry(dummy_graph, f"#rho = {pearson_r:.4f}", "")
+        legend.AddEntry(xy_line, "y = x", "l")  # "l" = line
+        legend.AddEntry(fit_function, "Linear Fit", "l")
+        legend.Draw()
+        imagename=outfolder+histname+'.png'
+        canvas.SaveAs(imagename)
+        canvas.Close()
+    elif 'corrs' in histname:
+        ROOT.gStyle.SetOptStat(0)
+        canvas = ROOT.TCanvas("canvas", "Canvas Title", 1800, 1200)
+        canvas.SetRightMargin(0.15)
+        hist.Draw('COLZ')
+        if filename1 in histname: imagename=outfolder+"corrs_f_"+filename1+"_d"+str(depth)+".png"
+        else: imagename=outfolder+"corrs_f_"+filename2+"_d"+str(depth)+".png"
+        canvas.SaveAs(imagename)
+        canvas.Close()
 
 def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -395,6 +363,9 @@ def main():
     #mom_file="mom.txt"
     #it1='corrs_all_EGAMMA0_2024I.txt'
 
+    global outroot #root file to store everything
+    outroot=ROOT.TFile(outfolder+'rootfile_f1_'+filename1+'_f2_'+filename2+'.root','recreate')
+
     #text outputs. change as appropriate.
     pulls=open(outfolder+'pulls_f1_'+filename1+"_f2_"+filename2+'.txt','w')
     uncerts1=open(outfolder+'uncerts_'+filename1+'.txt','w')
@@ -412,13 +383,17 @@ def main():
         pull_plots(df1,df2,pulls,residuals,outliers,depth)
         uncert_plots(df1,uncerts1,depth)
         uncert_plots(df2,uncerts2,depth)
-        corr_plots(df1,depth)
-        corr_plots(df2,depth)
+        corr_plots(df1,filename1,depth)
+        corr_plots(df2,filename2,depth)
 
     pulls.close()
     uncerts1.close()
     uncerts2.close()
     residuals.close()
 
+    for key in outroot.GetListOfKeys():
+        draw_hist(key.ReadObj())
+
+    outroot.Close()
 if __name__ == "__main__":
     main()
