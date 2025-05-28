@@ -8,6 +8,13 @@ import pandas as pd
 from itertools import chain
 ROOT.gROOT.SetBatch(True)
 import os
+import sys
+
+def str_to_float_list(s):
+    return [abs(float(th)) for th in s.split(',')]
+
+def strip_float(fl): #for image file names
+    return str(fl).replace('.','-').rstrip('0')
 
 def get_df(filename):
     df=pd.read_csv(filename,sep='\s+',header=None)
@@ -80,9 +87,9 @@ def correlation_plot(df1,df2,rem_ones):
     graphhf.SetMarkerColor(ROOT.kBlue)
     graphhf.GetXaxis().SetTitle(filename1)  # Set X-axis title
     graphhf.GetYaxis().SetTitle(filename2)
-    x_minb, x_maxb = float("inf"), float("-inf")
-    x_mine, x_maxe = float("inf"), float("-inf")
-    x_minf, x_maxf = float("inf"), float("-inf")
+    #x_minb, x_maxb = float("inf"), float("-inf")
+    #x_mine, x_maxe = float("inf"), float("-inf")
+    #x_minf, x_maxf = float("inf"), float("-inf")
     for row in df1.itertuples():
         (subdet,ieta,iphi,depth)=(row.Subdetector,row.iEta,row.iPhi,row.Depth)
         corr1=row.Correction
@@ -93,22 +100,22 @@ def correlation_plot(df1,df2,rem_ones):
                     continue
                 if (subdet==4) :
                     graphhf.AddPoint(corr1, corr2)
-                    x_minf = min(x_minf, corr1)
-                    x_maxf = max(x_maxf, corr1)
+                    #x_minf = min(x_minf, corr1)
+                    #x_maxf = max(x_maxf, corr1)
                 if (subdet==2) :
                     graphhe.AddPoint(corr1, corr2)
-                    x_mine = min(x_mine, corr1)
-                    x_maxe = max(x_maxe, corr1)
+                    #x_mine = min(x_mine, corr1)
+                    #x_maxe = max(x_maxe, corr1)
                 if (subdet==1) :
                     graphhb.AddPoint(corr1, corr2)
-                    x_minb = min(x_minb, corr1)
-                    x_maxb = max(x_maxb, corr1)
+                    #x_minb = min(x_minb, corr1)
+                    #x_maxb = max(x_maxb, corr1)
         #otherwise the channel does not exist in file 2. This is handled later in the pull method.
     outroot.WriteObject(graphhb,graphhb.GetName())
     outroot.WriteObject(graphhe,graphhe.GetName())
     outroot.WriteObject(graphhf,graphhf.GetName())
 
-def pull_plots(df1,df2,outpulls,outres,outliers,depth):
+def pull_plots(df1,df2,outpulls,outres,outliers,depth): #pulls and residuals actually
     if(not (df1['Depth']==depth).any() or not (df2['Depth']==depth).any()):return 0 #if the depth doesn't exist at all, don't bother
     #plot corrections:
     #plot pulls
@@ -122,9 +129,9 @@ def pull_plots(df1,df2,outpulls,outres,outliers,depth):
     pulls_he=[]
     pulls_hf=[]
     for eta in range(0,pulls_th2d.GetNbinsX()+1):
-        for phi in range(0,pulls_th2d.GetNbinsY()+1):
-            pulls_th2d.SetBinContent(eta,phi,-1000)
-            resid_th2d.SetBinContent(eta,phi,-1000)
+        for phi in range(0,pulls_th2d.GetNbinsY()+1): 
+            pulls_th2d.SetBinContent(eta,phi,-sys.float_info.max)
+            resid_th2d.SetBinContent(eta,phi,-sys.float_info.max)
 
     for row1 in df1.itertuples():
         (subdet,ieta,iphi)=(row1.Subdetector,row1.iEta,row1.iPhi)
@@ -215,11 +222,6 @@ def uncert_plots(df,outfile,depth):
         uncerts.append(corre/corr)
         outfile.write(str(row.Subdetector)+' '+str(row.iEta)+' '+str(row.iPhi)+' '+str(depth)+' '+str(corr)+' '+str(corre/corr)+'\n')
     outroot.WriteObject(unc_hist,unc_hist.GetName())
-    canvas = ROOT.TCanvas("canvas", "Canvas Title", 1800, 1200)
-    canvas.SetRightMargin(0.15)
-    unc_hist.Draw("COLZ")
-    imagename=outfolder+"uncert_"+filename1+"_d"+str(depth)+".png"
-    canvas.SaveAs(imagename)
 
 def draw_hist(hist): #for correlation plot it takes TGraph, not hist, BTW.
     histname=hist.GetName()
@@ -238,7 +240,7 @@ def draw_hist(hist): #for correlation plot it takes TGraph, not hist, BTW.
         gaussian = ROOT.TF1("gaussian", "gaus", hist.GetMinimum(), hist.GetMaximum())
         if 'res' in histname and 'log' not in histname: gaussian=ROOT.TF1('gaussian','gaus',-0.15,0.15)
         hist.Fit(gaussian)
-        canvas = ROOT.TCanvas("canvas", "Histogram with Gaussian Fit", 1800, 1200)
+        canvas = ROOT.TCanvas("canvas", "Histogram with Gaussian Fit", 1800, 1200) #maybe move canvas outside of conditionals?
         canvas.SetRightMargin(0.15)
         if 'log' in histname: canvas.SetLogy()
         hist.Draw()
@@ -262,34 +264,27 @@ def draw_hist(hist): #for correlation plot it takes TGraph, not hist, BTW.
         if 'pull' in histname:
             canvas.SaveAs(outfolder+'th2d_pulls_f1_'+filename1+'_f2_'+filename2+'_d'+str(depth)+'.png')
             canvas.Close()
-            hist.SetTitle('Pulls for Depth '+str(depth)+' within +-5')
-            hist.SetMaximum(5.0)
-            hist.SetMinimum(-5.0)
-            zoomed_pulls_canvas = ROOT.TCanvas("canvas3", "Canvas Title",1800, 1200)
-            zoomed_pulls_canvas.SetRightMargin(0.15)
-            hist.Draw('COLZ')
-            zoomed_pulls_canvas.SaveAs(outfolder+'th2d_pulls_5_f1_'+filename1+'_f2_'+filename2+'_d'+str(depth)+'.png')
-            zoomed_pulls_canvas.Close()
-
-            hist.SetTitle('Pulls for Depth '+str(depth)+' within +-10')
-            hist.SetMaximum(10.0)
-            hist.SetMinimum(-10.0)
-            zoomed_pulls_canvas1 = ROOT.TCanvas("canvas4", "Canvas Title",1800, 1200)
-            zoomed_pulls_canvas1.SetRightMargin(0.15)
-            hist.Draw('COLZ')
-            zoomed_pulls_canvas1.SaveAs(outfolder+'th2d_pulls_10_f1_'+filename1+'_f2_'+filename2+'_d'+str(depth)+'.png')
-            zoomed_pulls_canvas1.Close()
+            for pthreshold in pull_thresholds:
+                hist.SetTitle('\\text{Pulls for Depth }'+str(depth)+'\\text{ within }\\pm'+str(pthreshold))
+                hist.SetMaximum(pthreshold)
+                hist.SetMinimum(-pthreshold)
+                zoomed_pulls_canvas = ROOT.TCanvas("canvas3", "Canvas Title",1800, 1200)
+                zoomed_pulls_canvas.SetRightMargin(0.15)
+                hist.Draw('COLZ')
+                zoomed_pulls_canvas.SaveAs(outfolder+'th2d_pulls_'+strip_float(pthreshold)+'_f1_'+filename1+'_f2_'+filename2+'_d'+str(depth)+'.png')
+                zoomed_pulls_canvas.Close()
         elif 'res' in histname:
             canvas.SaveAs(outfolder+'th2d_resid_f1_'+filename1+'_f2_'+filename2+'_d'+str(depth)+'.png')
             canvas.Close()
-            hist.SetTitle('Residuals for Depth '+str(depth)+' within +-0.15')
-            hist.SetMaximum(0.15)
-            hist.SetMinimum(-0.15)
-            zoomed_resid_canvas = ROOT.TCanvas("canvas5", "Canvas Title", 1800, 1200)
-            zoomed_resid_canvas.SetRightMargin(0.15)
-            hist.Draw('COLZ')
-            zoomed_resid_canvas.SaveAs(outfolder+'th2d_resid_015_f1_'+filename1+'_f2_'+filename2+'_d'+str(depth)+'.png')
-            zoomed_resid_canvas.Close()
+            for rthreshold in resid_thresholds:
+                hist.SetTitle('\\text{Residuals for Depth }'+str(depth)+'\\text{ within }\\pm'+str(rthreshold))
+                hist.SetMaximum(rthreshold)
+                hist.SetMinimum(-rthreshold)
+                zoomed_resid_canvas = ROOT.TCanvas("canvas5", "Canvas Title", 1800, 1200)
+                zoomed_resid_canvas.SetRightMargin(0.15)
+                hist.Draw('COLZ')
+                zoomed_resid_canvas.SaveAs(outfolder+'th2d_resid_'+strip_float(rthreshold)+'_f1_'+filename1+'_f2_'+filename2+'_d'+str(depth)+'.png')
+                zoomed_resid_canvas.Close()
         else: #just to be safe
             canvas.Close()
     elif 'uncert' in histname:
@@ -339,12 +334,19 @@ def main():
     parser.add_argument("file1",help="first file")
     parser.add_argument("file2",help="second file")
     parser.add_argument('--outdir',type=str,help='output directory',default='')
+    parser.add_argument('--pullthresholds',type=str_to_float_list,help='pull thresholds, comma separated, abs',default='10')
+    parser.add_argument('--resthresholds',type=str_to_float_list,help='residual thresholds, comma separated, abs',default='0.15')
     args=parser.parse_args()
+
     global outfolder
     outfolder=str(args.outdir)
     if outfolder!='':
         if outfolder[-1]!='/': outfolder=outfolder+'/'
         if not(os.path.exists(outfolder) and os.path.isdir(outfolder)): os.makedirs(outfolder)
+    
+    global pull_thresholds, resid_thresholds
+    pull_thresholds=args.pullthresholds
+    resid_thresholds=args.resthresholds
 
     global subdetectors
     subdetectors={1:'HB',2:'HE',4:'HF'}
@@ -390,6 +392,7 @@ def main():
     uncerts1.close()
     uncerts2.close()
     residuals.close()
+    outliers.close()
 
     for key in outroot.GetListOfKeys():
         draw_hist(key.ReadObj())
