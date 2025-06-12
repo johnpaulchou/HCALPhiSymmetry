@@ -212,7 +212,7 @@ def pull_plots(df1,df2,outpulls,outres,outliers,depth): #pulls and residuals act
 
 def uncert_plots(df,outfile,depth):
     uncerts=[]
-    unc_hist=ROOT.TH2D('dep1','Relative Uncertainty at Depth '+str(depth),83,-41,41,72,0,72)
+    unc_hist=ROOT.TH2D(f"dep{depth}",'Relative Uncertainty at Depth '+str(depth),83,-41,41,72,0,72)
     for row in df.itertuples():
         corr=row.Correction
         corre=row.Error
@@ -222,7 +222,7 @@ def uncert_plots(df,outfile,depth):
         uncerts.append(corre/corr)
         outfile.write(str(row.Subdetector)+' '+str(row.iEta)+' '+str(row.iPhi)+' '+str(depth)+' '+str(corr)+' '+str(corre/corr)+'\n')
     outroot.WriteObject(unc_hist,unc_hist.GetName())
-
+    ROOT.gDirectory.Remove(unc_hist)
 def draw_hist(hist): #for correlation plot it takes TGraph, not hist, BTW.
     histname=hist.GetName()
 
