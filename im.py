@@ -9,11 +9,11 @@ import scipy.optimize as spo
 import scipy.integrate as integrate
 import numpy as np
 from scipy.stats import bootstrap
-
+sys.stdout = open("output.txt", "w")
 # detector geometry and magic numbers
 subdets = [ "HB", "HE", "HF" ]
 subdetnums = [ 1, 2, 4]
-ndepths = [ 4, 7, 4]
+ndepths = [ 4, 7, 2]
 minabsietas = [ 1, 16, 29]
 maxabsietas = [ 16, 29, 41]
 miniphi = 1
@@ -47,7 +47,7 @@ def getHist(rootfile, subdet, ieta, iphi, depth, mod, checkGoodChannel=True):
         hist.SetDirectory(0)
         # REBIN THE HF histograms here
         if subdet=="HF": hist.Rebin(5)
-        return hist    
+        return hist
     ### end getHist()
 
 ### goodChannel() - determines if the channel should exist (or not)
@@ -61,7 +61,7 @@ def goodChannel(subdet, ieta, iphi, depth, mod):
 
     # HB checks
     if subdet=="HB" and depth>=1 and depth<=3 and abs(ieta)<=16: return True
-    if subdet=="HB" and depth==4 and abs(ieta)<=15: return True
+    if subdet=="HB" and depth==4 and abs(ieta)<=16: return True
 
     # HE checks
     if subdet=="HE":
@@ -78,7 +78,7 @@ def goodChannel(subdet, ieta, iphi, depth, mod):
         if iphi%2==0: return False
         if abs(ieta)>=29 and abs(ieta)<=39 and depth>=1 and depth<=4: return True
         if abs(ieta)>=40 and abs(ieta)<=41 and iphi%4==3: return True
-    
+
     return False
     ### end goodChannel()
 
@@ -88,7 +88,7 @@ def testGoodChannel(inputfilename):
     if not inputhistfile or inputhistfile.IsZombie():
         print("Error: Unable to open file "+inputfilename+".")
         exit(1)
-    
+
     for subdetindex,subdet in enumerate(subdets):
         for depth in range(1, ndepths[subdetindex]+1):
             ietas1 = range(minabsietas[subdetindex],maxabsietas[subdetindex]+1)
@@ -112,13 +112,13 @@ class minimizeFunc:
         self.mean = mean
         self.lo = lo
         self.hi = hi
-        
+
     def splineF(self, x):
         return self.spline.Eval(x)
 
     def splineMeanF(self, x, corr):
         return x*corr*self.spline.Eval(x)
-    
+
     def minimizer(self,corr):
         # integrate from the new bounds
         splineIntegral = integrate.quad(self.splineF,self.lo/corr[0],self.hi/corr[0])
@@ -143,7 +143,7 @@ def main():
     parser.add_argument("--ieta",help="ieta value (0 for all ietas)", type=int, default=0)
     parser.add_argument("--depth",help="depth value (0 for all depths)", type=int, default=0)
     args=parser.parse_args()
-    
+
     # filenames
     inputfilename = args.inputfilename
     if args.ieta==0:
@@ -168,11 +168,11 @@ def main():
     # loop over subdetectors
     for subdetindex,subdet in enumerate(subdets):
         if subdet!=args.subdetector and args.subdetector!="all": continue
-    
+
         # loop over depths
         for depth in range(1, ndepths[subdetindex]+1):
             if depth!=args.depth and args.depth!=0: continue
-            
+
             # loop over positive and negative ieta
             ietas1 = range(minabsietas[subdetindex],maxabsietas[subdetindex]+1)
             ietas2 = range(-maxabsietas[subdetindex],-minabsietas[subdetindex]+1)
@@ -180,20 +180,20 @@ def main():
             for ieta in ietas:
                 if args.side!="all" and ((ieta<0 and args.side!="-") or (ieta>0 and args.side!="+")): continue
                 if ieta!=args.ieta and args.ieta!=0: continue
-                
+
                 # store the corrections here
                 corrs = [[-1 for mod in range(modulus)] for iphi in range(maxiphi+1-miniphi)]
 
                 # loop over moduli
                 for mod in range(modulus):
-                
+
                     # loop over iphi the first time
                     foundHist=False
                     meanE=0.
                     nmeanE=0
                     hists = [None]*(maxiphi-miniphi+1) # store histograms so that you don't have to read it twice
                     for iphi in range(miniphi, maxiphi+1):
-                
+
                         # get the histogram and compute stuff
                         h=getHist(inputhistfile, subdet, ieta, iphi, depth, mod)
 
@@ -218,13 +218,13 @@ def main():
 
                     # skip this if no iphi slice was found
                     if not foundHist: continue
-            
+
                     # compute the average across all iphi ranges
                     meanE=meanE/nmeanE
                     if meanE<=0:
                         print("all histograms empty for subdet="+subdet+", ieta="+str(ieta)+", depth="+str(depth)+", mod="+str(mod),file=sys.stderr)
                         continue
-            
+
                     # loop over iphi a second time
                     for iphi in range(miniphi, maxiphi+1):
 
@@ -232,7 +232,7 @@ def main():
                         h=hists[iphi-miniphi]
                         if h is None: continue
                         h.SetAxisRange(minthresholds[subdetindex],maxthresholds[subdetindex])
-                
+
                         # create a spline
                         xcorr = [0.0]*h.GetNbinsX()
                         ycorr = [0.0]*h.GetNbinsX()
@@ -265,12 +265,19 @@ def main():
                     # compute average and stddev of the correction over moduli
                     data = np.array(corrs[iphi-miniphi])
                     data = data[data >= 0] # eliminate negative data values
-                    if len(data)<=0: continue
+                    #print(iphi)
+                    #print(data)
+                    if len(data)<modulus:
+                        print("Could not find all moduli for " +str(ieta)+" "+str(iphi)+" "+str(depth))
+                        corrStr = -3
+                        corrErrStr = -0.00001
+                        outputtxtfile.write(str(subdetnums[subdetindex])+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+" "+corrStr+" "+corrErrStr+"\n")
+                        continue
                     avgcorr=np.mean(data)
 #                    stddevcorr=np.std(data, ddof=1, mean=avgcorr)/len(data)**.5
                     d=(data,)
                     stddevcorr=bootstrap(d, np.mean, confidence_level=0.68,n_resamples=999).standard_error
-                    
+
                     # write the results to the file
                     corrStr = f"{avgcorr:.5f}"
                     corrErrStr = f"{stddevcorr:.5f}"
@@ -290,4 +297,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
