@@ -222,9 +222,9 @@ def pull_plots(df1,df2,outpulls,outres,outliers,depth): #pulls and residuals act
     resid_th2d.SetMinimum(min(chain(residuals_hb,residuals_he,residuals_hf)))
     outroot.WriteObject(resid_th2d,resid_th2d.GetName())
 
-def uncert_plots(df,outfile,depth):
+def uncert_plots(df,filename,outfile,depth):
     uncerts=[]
-    unc_hist=ROOT.TH2D(f"dep{depth}",'Relative Uncertainty at Depth '+str(depth),83,-41,41,72,0,72)
+    unc_hist=ROOT.TH2D(f"uncert_f_{filename}_d{depth}",'Relative Uncertainty at Depth '+str(depth),83,-41,41,72,0,72)
     for row in df.itertuples():
         corr=row.Correction
         corre=row.Error
@@ -566,8 +566,8 @@ def main():
         correlation_plot(df1,df2,True)
         for depth in range(1,8):
             pull_plots(df1,df2,pulls,residuals,outliers,depth)
-            uncert_plots(df1,uncerts1,depth)
-            uncert_plots(df2,uncerts2,depth)
+            uncert_plots(df1,filename1,uncerts1,depth)
+            uncert_plots(df2,filename2,uncerts2,depth)
             corr_plots(df1,filename1,depth)
             corr_plots(df2,filename2,depth)
 
