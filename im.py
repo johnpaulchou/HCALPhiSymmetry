@@ -271,7 +271,7 @@ def main():
                         print("Could not find all moduli for " +str(ieta)+" "+str(iphi)+" "+str(depth))
                         corrStr = -3
                         corrErrStr = -0.00001
-                        outputtxtfile.write(str(subdetnums[subdetindex])+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+" "+corrStr+" "+corrErrStr+"\n")
+                        outputtxtfile.write(str(subdetnums[subdetindex])+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+" "+f"{corrStr:.5f}"+" "+f"{corrErrStr:.5f}"+"\n")
                         continue
                     avgcorr=np.mean(data)
 #                    stddevcorr=np.std(data, ddof=1, mean=avgcorr)/len(data)**.5
