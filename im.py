@@ -61,7 +61,7 @@ def goodChannel(subdet, ieta, iphi, depth, mod):
 
     # HB checks
     if subdet=="HB" and depth>=1 and depth<=3 and abs(ieta)<=16: return True
-    if subdet=="HB" and depth==4 and abs(ieta)<=16: return True
+    if subdet=="HB" and depth==4 and abs(ieta)<=15: return True
 
     # HE checks
     if subdet=="HE":
@@ -75,8 +75,9 @@ def goodChannel(subdet, ieta, iphi, depth, mod):
 
     # HF checks
     if subdet=="HF":
+        if depth<1 or depth >2: return False
         if iphi%2==0: return False
-        if abs(ieta)>=29 and abs(ieta)<=39 and depth>=1 and depth<=4: return True
+        if abs(ieta)>=29 and abs(ieta)<=39: return True
         if abs(ieta)>=40 and abs(ieta)<=41 and iphi%4==3: return True
 
     return False
@@ -100,9 +101,9 @@ def testGoodChannel(inputfilename):
                         val=goodChannel(subdet, ieta, iphi, depth, mod)
                         h=getHist(inputhistfile, subdet, ieta, iphi, depth, mod, False)
                         if h is None and val==True:
-                            print("No hist found for "+subdet+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+" "+str(mod))
+                            outputerrfile.write("No hist found for "+subdet+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+" "+str(mod))
                         elif h is not None and val==False:
-                            print("Hist found for "+subdet+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+" "+str(mod))
+                            outputerrfile.write("Hist found for "+subdet+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+" "+str(mod))
     ### end testGoodChannel()
 
 # defines the function to minimize
@@ -155,10 +156,12 @@ def main():
     if args.depth!=0:
         filestr = filestr + "_d"+str(args.depth)
     outputtxtfilename = "corrs_"+filestr+".txt"
+    outputerrfilename = "err_"+filestr+".txt"
     outputhistfilename = "hists_"+filestr+".root"
 
     # open files
     outputtxtfile = open(outputtxtfilename, "w")
+    outputerrfile = open(outputerrfilename, "w")
     outputhistfile = ROOT.TFile(outputhistfilename, "RECREATE")
     inputhistfile = ROOT.TFile(inputfilename, "READ")
     if not inputhistfile or inputhistfile.IsZombie():
@@ -268,10 +271,10 @@ def main():
                     #print(iphi)
                     #print(data)
                     if len(data)<modulus:
-                        print("Could not find all moduli for " +str(ieta)+" "+str(iphi)+" "+str(depth))
-                        corrStr = -3
-                        corrErrStr = -0.00001
-                        outputtxtfile.write(str(subdetnums[subdetindex])+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+" "+f"{corrStr:.5f}"+" "+f"{corrErrStr:.5f}"+"\n")
+                        outputerrfile.write("Could not find all moduli for " +str(ieta)+" "+str(iphi)+" "+str(depth)+ " "+str(subdetnums[subdetindex]))
+                        #corrStr = -3
+                        #corrErrStr = -0.00001
+                        #outputerrfile.write(str(subdetnums[subdetindex])+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+"\n")
                         continue
                     avgcorr=np.mean(data)
 #                    stddevcorr=np.std(data, ddof=1, mean=avgcorr)/len(data)**.5
@@ -289,6 +292,7 @@ def main():
         # end loop over subdets
 
     outputtxtfile.close()
+    outputerrfile.close()
     outputhistfile.cd()
     inputhistfile.Close()
     outputhistfile.Close()
