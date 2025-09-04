@@ -19,7 +19,7 @@ Usage:
 import argparse
 import sys
 from collections import Counter
-from im import goodChannel 
+from im import goodChannel
 
 # Subdetector mapping and expected totals
 SUBDET_MAP = {1: "HB", 2: "HE", 4: "HF"}
@@ -45,10 +45,11 @@ def parse_args():
 def read_key_line_pairs(path, strict=False):
     """
     Read lines with ≥4 columns (skip blank/comment lines).
+    Cleans extraneous whitespace/tabs and skips empty lines.
     Returns:
       keys: set[(c1, ieta, iphi, depth)]
-      lines_by_key: dict key -> original line text (first occurrence kept)
-      raw_lines: list[str] of all non-comment, non-blank lines (for total-line count)
+      lines_by_key: dict key -> original cleaned line text (first occurrence kept)
+      raw_lines: list[str] of all cleaned non-comment, non-blank lines
       key_counter: Counter of quadruplet keys (duplicates show count > 1)
       line_counter: Counter of exact text lines (duplicates show count > 1)
     """
@@ -59,13 +60,15 @@ def read_key_line_pairs(path, strict=False):
     line_counter = Counter()
     with open(path, "r", encoding="latin-1") as f:
         for ln, raw in enumerate(f, 1):
-            s = raw.rstrip("\n")
-            if not s.strip() or s.lstrip().startswith("#"):
+            # normalize whitespace (convert tabs -> spaces, collapse multiple spaces)
+            s = raw.strip()
+            s = re.sub(r"\s+", " ", s)
+            if not s or s.startswith("#"):
                 continue
             parts = s.split()
             if len(parts) < 4:
                 if strict:
-                    raise ValueError(f"Line {ln}: expected ≥4 columns, got {len(parts)} -> {s!r}")
+                    raise ValueError(f"Line {ln}: expected ≥4 columns, got {len(parts)} -> {raw!r}")
                 else:
                     continue
             try:
