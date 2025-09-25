@@ -20,7 +20,7 @@ import argparse
 import sys
 from collections import Counter
 from im import goodChannel
-
+import re
 # Subdetector mapping and expected totals
 SUBDET_MAP = {1: "HB", 2: "HE", 4: "HF"}
 VALID_SUBDET_IDS = set(SUBDET_MAP.keys())

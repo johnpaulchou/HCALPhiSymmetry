@@ -21,7 +21,7 @@ maxiphi = 72
 minthresholds = [ 4., 4., 10.]
 maxthresholds = [ 100., 150., 150.]
 modulus = 20
-doEFlow = True # if true, use the mean*integral, not the mean
+doEFlow = False # if true, use the mean*integral, not the integral
 
 ### getHist() - opens a file and gets the histogram with the given detector ID
 def getHist(rootfile, subdet, ieta, iphi, depth, mod, checkGoodChannel=True):
@@ -127,7 +127,7 @@ class minimizeFunc:
 
         # compute the mean and return the difference with the target mean squared
         if doEFlow: return (splineMean[0] - self.mean)**2
-        else: return (splineMean[0]/splineIntegral[0] - self.mean)**2
+        else: return (splineIntegral[0] - self.mean)**2
 
     def minimize(self):
         result = spo.minimize(self.minimizer, 1.0, bounds=[(0.10,3.)],tol=1e-4,method="Nelder-Mead")
@@ -215,7 +215,7 @@ def main():
                         foundHist=True
                         h.SetAxisRange(minthresholds[subdetindex],maxthresholds[subdetindex])
                         if doEFlow: meanE=meanE+h.GetMean()*h.Integral("width") # average energy*integral (normalized to bin size)
-                        else:       meanE=meanE+h.GetMean() # average energy
+                        else:       meanE=meanE+h.Integral("width") # average energy
                         nmeanE=nmeanE+1
                         # end first iphi loop
 
@@ -271,7 +271,7 @@ def main():
                     #print(iphi)
                     #print(data)
                     if len(data)<modulus:
-                        outputerrfile.write("Could not find all moduli for " +str(ieta)+" "+str(iphi)+" "+str(depth)+ " "+str(subdetnums[subdetindex]))
+                        outputerrfile.write("Could not find all moduli for " +str(ieta)+" "+str(iphi)+" "+str(depth)+ " "+str(subdetnums[subdetindex])+ " Length of data: "+str(len(data))+"\n")
                         #corrStr = -3
                         #corrErrStr = -0.00001
                         #outputerrfile.write(str(subdetnums[subdetindex])+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+"\n")
