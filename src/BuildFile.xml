@@ -1,10 +1,7 @@
 <use name="DataFormats/HcalRecHit"/>
-<use name="DataFormats/HcalDigi"/>
-<use name="DataFormats/HcalDetId"/>
-<use name="DataFormats/DetId"/>
-<use name="DataFormats/VertexReco"/>
-<use name="DataFormats/TrackReco"/>
 <use name="DataFormats/Common"/>
+<use name="DataFormats/PatCandidates"/>
+<use name="DataFormats/HLTReco"/>
 <use name="FWCore/Framework"/>
 <use name="FWCore/Common"/>
 <use name="FWCore/ServiceRegistry"/>
@@ -12,11 +9,9 @@
 <use name="FWCore/PluginManager"/>
 <use name="FWCore/Utilities"/>
 <use name="CommonTools/UtilAlgos"/>
-<use name="SimDataFormats/GeneratorProducts"/>
-<use name="Geometry/CaloGeometry"/>
-<use name="Geometry/Records"/>
+<use name="CondFormats/DataRecord"/>
 <use name="CondFormats/HcalObjects"/>
-<use name="CalibFormats/HcalObjects"/>
-
+<use name="HLTrigger/HLTcore"/>
+<use name="HLTrigger/HLTinterface"/>
 
 <flags EDM_PLUGIN="1"/>
