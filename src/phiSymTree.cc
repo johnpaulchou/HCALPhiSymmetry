@@ -224,6 +224,7 @@ void phiSymTree::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup
     const trigger::Keys& keys = triggerSummary->filterKeys(filterIndex);
     const trigger::TriggerObjectCollection& objects = triggerSummary->getObjects();
 
+    // store the trigger object info
     for (size_t i = 0; i < keys.size(); ++i) {
       const trigger::TriggerObject& obj = objects[keys[i]];
 
