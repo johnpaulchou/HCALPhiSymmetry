@@ -16,5 +16,6 @@ scram b -j4
 cd HCALPhiSymmetry
 cmsRun test/phisymtree.py
 ```
-The above commands will read an EDM file and generate a TTree that contains HB, HE, and HF hits above a certain energy threshold and the 3-vector of the selected triggers. The code that does this is found in src/phiSymTree.cc and the file that controls the parameters is test/phisymtree.py.
+The above commands will read an EDM file and generate a TTree that contains HB, HE, and HF hits above a certain energy threshold and the 3-vector of the selected triggers. The code that does this is found in src/phiSymTree.cc, and the file that controls the parameters is test/phisymtree.py.
 
+The next step is to use the information in the TTree to generate histograms of the hit energy distributions. These histograms are weighted by the 3-vector (eta-phi) direction.
