@@ -9,102 +9,11 @@ import scipy.optimize as spo
 import scipy.integrate as integrate
 import numpy as np
 from scipy.stats import bootstrap
+
 sys.stdout = open("output.txt", "w")
-# detector geometry and magic numbers
-subdets = [ "HB", "HE", "HF" ]
-subdetnums = [ 1, 2, 4]
-ndepths = [ 4, 7, 2]
-minabsietas = [ 1, 16, 29]
-maxabsietas = [ 16, 29, 41]
-miniphi = 1
-maxiphi = 72
-minthresholds = [ 4., 4., 10.]
-maxthresholds = [ 100., 150., 150.]
-modulus = 20
+
 doEFlow = True # if true, use the mean*integral, not the integral
 
-### getHist() - opens a file and gets the histogram with the given detector ID
-def getHist(rootfile, subdet, ieta, iphi, depth, mod, checkGoodChannel=True):
-
-    # don't bother if it's not a good channel to begin with
-    if checkGoodChannel and not goodChannel(subdet, ieta, iphi, depth, mod): return None
-
-    # select directory
-    if subdet=="HB":   histname = "phaseHF/eHBspec/E_"
-    elif subdet=="HE": histname = "phaseHF/eHEspec/E_"
-    else:              histname = "phaseHF/espec/E_"
-
-    # account for +/- in the name
-    if ieta<0: histname = histname + "-" + str(abs(ieta)) + "_" + str(iphi) + "_" + str(depth) + "_" + str(mod)
-    else:      histname = histname + "+" + str(abs(ieta)) + "_" + str(iphi) + "_" + str(depth) + "_" + str(mod)
-
-    # get the hist and return it
-    rootfile.cd()
-    hist = rootfile.Get(histname)
-    if not hist or not isinstance(hist, ROOT.TH1) or hist is None:
-        return None
-    else:
-        hist.SetDirectory(0)
-        # REBIN THE HF histograms here
-        if subdet=="HF": hist.Rebin(5)
-        return hist
-    ### end getHist()
-
-### goodChannel() - determines if the channel should exist (or not)
-def goodChannel(subdet, ieta, iphi, depth, mod):
-
-    # do some sanity checks, first
-    if iphi<=0 or iphi>=73: return False
-    if ieta==0 or abs(ieta)>=42: return False
-    if depth<=0 or depth>7: return False
-    if mod>=modulus or mod<0: return False
-
-    # HB checks
-    if subdet=="HB" and depth>=1 and depth<=3 and abs(ieta)<=16: return True
-    if subdet=="HB" and depth==4 and abs(ieta)<=15: return True
-
-    # HE checks
-    if subdet=="HE":
-        if abs(ieta)==16 and depth==4: return True
-        if abs(ieta)==17 and (depth==2 or depth==3): return True
-        if abs(ieta)==18 and depth>=2 and depth<=5: return True
-        if abs(ieta)>=19 and abs(ieta)<=20 and depth>=1 and depth<=6: return True
-        if abs(ieta)>=21 and abs(ieta)<=25 and depth>=1 and depth<=6 and iphi%2==1: return True
-        if abs(ieta)>=26 and abs(ieta)<=28 and depth>=1 and depth<=7 and iphi%2==1: return True
-        if abs(ieta)==29 and depth>=1 and depth<=3 and iphi%2==1: return True
-
-    # HF checks
-    if subdet=="HF":
-        if depth<1 or depth >2: return False
-        if iphi%2==0: return False
-        if abs(ieta)>=29 and abs(ieta)<=39: return True
-        if abs(ieta)>=40 and abs(ieta)<=41 and iphi%4==3: return True
-
-    return False
-    ### end goodChannel()
-
-# testGoodChannel() - tests whether the goodChannel is consistent with the file
-def testGoodChannel(inputfilename):
-    inputhistfile = ROOT.TFile(inputfilename, "READ")
-    if not inputhistfile or inputhistfile.IsZombie():
-        print("Error: Unable to open file "+inputfilename+".")
-        exit(1)
-
-    for subdetindex,subdet in enumerate(subdets):
-        for depth in range(1, ndepths[subdetindex]+1):
-            ietas1 = range(minabsietas[subdetindex],maxabsietas[subdetindex]+1)
-            ietas2 = range(-maxabsietas[subdetindex],-minabsietas[subdetindex]+1)
-            ietas = itertools.chain(ietas1, ietas2)
-            for ieta in ietas:
-                for iphi in range(miniphi, maxiphi+1):
-                    for mod in range(modulus):
-                        val=goodChannel(subdet, ieta, iphi, depth, mod)
-                        h=getHist(inputhistfile, subdet, ieta, iphi, depth, mod, False)
-                        if h is None and val==True:
-                            outputerrfile.write("No hist found for "+subdet+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+" "+str(mod))
-                        elif h is not None and val==False:
-                            outputerrfile.write("Hist found for "+subdet+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+" "+str(mod))
-    ### end testGoodChannel()
 
 # defines the function to minimize
 class minimizeFunc:
