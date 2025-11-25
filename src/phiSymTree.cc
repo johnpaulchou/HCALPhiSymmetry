@@ -42,8 +42,7 @@ private:
   const static int MAXNTRIGS=100;
   int nHits_;
   float hitEnergy_[MAXNHITS];
-  int ieta_[MAXNHITS], iphi_[MAXNHITS], depth_[MAXNHITS];
-  bool isHF_[MAXNHITS];
+  int ieta_[MAXNHITS], iphi_[MAXNHITS], depth_[MAXNHITS], subdet_[MAXNHITS];
   int nTrigs_;
   float trigPt_[MAXNTRIGS], trigEta_[MAXNTRIGS], trigPhi_[MAXNTRIGS];
   std::vector<std::string> trigNames_;
@@ -131,7 +130,7 @@ void phiSymTree::beginJob() {
   tree_->Branch("ieta", ieta_, "ieta[nHits]/I");
   tree_->Branch("iphi", iphi_, "iphi[nHits]/I");
   tree_->Branch("depth", depth_, "depth[nHits]/I");
-  tree_->Branch("isHF", isHF_, "isHF[nHits]/O");
+  tree_->Branch("subdet", subdet_, "subdet[nHits]/I");
   tree_->Branch("nTrigs", &nTrigs_, "nTrigs/I");
   tree_->Branch("trigPt", trigPt_, "trigPt[nTrigs]/F");
   tree_->Branch("trigEta", trigEta_, "trigEta[nTrigs]/F");
@@ -252,7 +251,7 @@ void phiSymTree::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup
     ieta_[nHits_]=hit.id().ieta();
     iphi_[nHits_]=hit.id().iphi();
     depth_[nHits_]=hit.id().depth();
-    isHF_[nHits_]=false; // denote this is _not_ in the HF
+    subdet_[nHits_]=hit.id().subdet(); // 1=HB, 2=HE, 4=HF
     ++nHits_;
   }
 
@@ -264,7 +263,7 @@ void phiSymTree::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup
     ieta_[nHits_]=hit.id().ieta();
     iphi_[nHits_]=hit.id().iphi();
     depth_[nHits_]=hit.id().depth();
-    isHF_[nHits_]=true; // denote this _is_ in the HF
+    subdet_[nHits_]=hit.id().subdet(); // 1=HB, 2=HE, 4=HF
     ++nHits_;
   }
 
