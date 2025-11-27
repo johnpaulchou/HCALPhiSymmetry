@@ -1,5 +1,6 @@
 import ROOT
 import itertools
+import sys
 
 # this is code and parameters common to all of the scripts
 
@@ -23,12 +24,26 @@ def subdetName(subdetnum):
 
 ### returns the (minimum, maximum) energy used in the iterative method
 def thresholds(subdetnum, ieta):
-    if subdetnum==subdetnums[0]:      return (4., 100.)
-    elif subdetdetnum==subdetnums[1]: return (4., 150.)
-    elif subdetdetnum==subdetnums[2]:
-        if abs(ieta)<=35:             return (10., 150.)
-        else:                         return (15., 300.)
+    if subdetnum==subdetnums[0]:   return (4., 100.)
+    elif subdetnum==subdetnums[1]: return (4., 150.)
+    elif subdetnum==subdetnums[2]:
+        if abs(ieta)<=35:          return (10., 150.)
+        else:                      return (15., 300.)
 ### end thresholds()
+
+
+### returns the (nbins, minx, maxx) used in the histogram binning
+def binning(subdetnum, ieta):
+
+    # the lower bin needs to match the threshold in phisymtree.py
+    if subdetnum==subdetnums[0]:   return (796, 1., 200.) 
+    elif subdetnum==subdetnums[1]: return (796, 1., 200.)
+    elif subdetnum==subdetnums[2]:
+        if abs(ieta)<=35:          return (495, 5., 500.)
+        else:                      return (198, 5., 500.)
+### end binning()
+
+
 
 
 ### generate the name of the histogram for a given channel
@@ -95,13 +110,11 @@ def goodChannel(subdetnum, ieta, iphi, depth, mod):
 
     
 # testGoodChannel() - tests whether the goodChannel is consistent with the file
-def testGoodChannel(inputfilename, errorfilename):
+def testGoodChannel(inputfilename):
     inputhistfile = ROOT.TFile(inputfilename, "READ")
     if not inputhistfile or inputhistfile.IsZombie():
         print("Error: Unable to open file "+inputfilename+".")
         exit(1)
-
-    outputerrfile = open(errorfilename, "w")
 
     for subdetindex,subdetnum in enumerate(subdetnums):
         for depth in range(1, ndepths[subdetindex]+1):
@@ -114,7 +127,7 @@ def testGoodChannel(inputfilename, errorfilename):
                         val=goodChannel(subdetnum, ieta, iphi, depth, mod)
                         h=getHist(inputhistfile, subdetnum, ieta, iphi, depth, mod, False)
                         if h is None and val==True:
-                            outputerrfile.write("No hist found for "+subdetName(subdetnum)+" ieta="+str(ieta)+" iphi="+str(iphi)+" depth="+str(depth)+" mod="+str(mod)+"\n")
+                            sys.stderr.write("No hist found for "+subdetName(subdetnum)+" ieta="+str(ieta)+" iphi="+str(iphi)+" depth="+str(depth)+" mod="+str(mod)+"\n")
                         elif h is not None and val==False:
-                            outputerrfile.write("Hist found for "+subdetName(subdetnum)+" ieta="+str(ieta)+" iphi="+str(iphi)+" depth="+str(depth)+" mod="+str(mod)+"\n")
+                            sys.stderr.write("Hist found for "+subdetName(subdetnum)+" ieta="+str(ieta)+" iphi="+str(iphi)+" depth="+str(depth)+" mod="+str(mod)+"\n")
 ### end testGoodChannel()
