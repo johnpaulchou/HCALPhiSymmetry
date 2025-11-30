@@ -1,4 +1,5 @@
 import FWCore.ParameterSet.Config as cms
+import glob
 
 from Configuration.Eras.Era_Run3_cff import Run3
 process = cms.Process('USER',Run3)
@@ -40,9 +41,8 @@ process.p = cms.Path(
     process.phisym
     )
 
-process.source = cms.Source ("PoolSource" ,
-                             fileNames=cms.untracked.vstring(
-                                 'file:/cms/bphys/HcalCalIterativePhiSym.root'
-                                 #                                 'file:/cms/bphys/08bee99c-d6c9-4ab8-a7b1-dfc4f2aaaf34.root'
-                                 )
-                             )
+
+files = glob.glob(os.path.join('/cms/bphys/HCAL/', "*.root"))
+
+process.source = cms.Source ("PoolSource", fileNames = cms.untracked.vstring("file:" + f for f in files))
+
