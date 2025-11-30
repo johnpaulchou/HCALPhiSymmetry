@@ -8,7 +8,6 @@ The directory structure needs to be CMSSW_release/src/PhiSym/HCALPhiSymmetry, so
 cmsrel CMSSW_15_0_15_patch4
 cd CMSSW_15_0_15_patch4/src
 cmsenv
-scram-venv # this is for uproot support
 mkdir PhiSym
 cd PhiSym
 git clone https://github.com/johnpaulchou/HCALPhiSymmetry.git
