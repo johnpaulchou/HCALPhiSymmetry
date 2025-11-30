@@ -5,8 +5,8 @@ This includes all of the CMSSW and scripts for the phi symmetry (iterative metho
 This package uses an EDAnalyzer that should be built within CMSSW. The recommended release is CMSSW_15_1_0. Other releases should probably work, but caveat emptor.
 The directory structure needs to be CMSSW_release/src/PhiSym/HCALPhiSymmetry, so you will want to do something like:
 ```
-cmsrel CMSSW_15_0_15_patch4
-cd CMSSW_15_0_15_patch4/src
+cmsrel CMSSW_15_1_0
+cd CMSSW_15_1_0/src
 cmsenv
 mkdir PhiSym
 cd PhiSym
