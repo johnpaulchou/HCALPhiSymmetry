@@ -4,8 +4,8 @@ import ROOT
 import common
 import argparse
 import fnmatch
+import array
 from collections import defaultdict
-
 
 
 ### creates a nested dictionary to manage the histograms
@@ -86,6 +86,40 @@ def main():
     nentries = chain.GetEntries()
     print("Total entries in TChain:", nentries)
 
+
+    run    = array.array("L", [0])
+    lumi   = array.array("L", [0])
+    event  = array.array("L", [0])
+    nHits      = array.array("i", [0])
+    MAXNHITS   = 20000
+    hitEnergy  = array.array("f", [0]*MAXNHITS)
+    ieta       = array.array("i", [0]*MAXNHITS)
+    iphi       = array.array("i", [0]*MAXNHITS)
+    depth      = array.array("i", [0]*MAXNHITS)
+    subdet     = array.array("i", [0]*MAXNHITS)
+    nTrigs     = array.array("i", [0])
+    MAXNTRIGS  = 100
+    trigPt     = array.array("f", [0]*MAXNTRIGS)
+    trigEta    = array.array("f", [0]*MAXNTRIGS)
+    trigPhi    = array.array("f", [0]*MAXNTRIGS)
+    trigNames = ROOT.std.vector("string")()
+
+    chain.SetBranchAddress("run",   run)
+    chain.SetBranchAddress("lumi",  lumi)
+    chain.SetBranchAddress("event", event)    
+    chain.SetBranchAddress("nHits", nHits)
+    chain.SetBranchAddress("hitEnergy", hitEnergy)
+    chain.SetBranchAddress("ieta",      ieta)
+    chain.SetBranchAddress("iphi",      iphi)
+    chain.SetBranchAddress("depth",     depth)
+    chain.SetBranchAddress("subdet",    subdet)
+    chain.SetBranchAddress("nTrigs",  nTrigs)
+    chain.SetBranchAddress("trigPt",  trigPt)
+    chain.SetBranchAddress("trigEta", trigEta)
+    chain.SetBranchAddress("trigPhi", trigPhi)
+    chain.SetBranchAddress("trigNames", trigNames)
+
+
     # create an output file
     rootfileout = ROOT.TFile(args.outputfn, "RECREATE")
 
@@ -95,45 +129,49 @@ def main():
         # create TH2D histogram for the trigger eta-phi
         histtitle="leading trigger object location"
         if args.hltpath is not None: histtitle += " for path="+args.hltpath
-        hTrigEtaPhi = ROOT.TH2D('hTrigEtaPhi', histtitle, 5, -2.6, 2.6, 5, -3.1415, 3.1415)
+        hTrigEtaPhi = ROOT.TH2D('hTrigEtaPhi', histtitle, 10, -2.6, 2.6, 20, -3.1415, 3.1415)
 
         # loop over events in the chain
         for ievt in range(nentries):
+            if ievt%10000==0: print("1st loop: "+str(ievt))
             chain.GetEntry(ievt)
 
             # get the index of the firing trigger, and fill the histogram, if found
-            trigIndex = find_lead_trigger_index(chain.nTrigs, chain.trigPt, chain.trigNames, args.hltpath)
+            trigIndex = find_lead_trigger_index(nTrigs[0], trigPt, trigNames, args.hltpath)
             if trigIndex<0: continue
-            hTrigEtaPhi.Fill(chain.trigEta[trigIndex], chain.trigPhi[trigIndex])
+            hTrigEtaPhi.Fill(trigEta[trigIndex], trigPhi[trigIndex])
 
 
     # normalize the 2d histogram
     normalize=hTrigEtaPhi.GetEntries()/hTrigEtaPhi.GetNbinsX()/hTrigEtaPhi.GetNbinsY()
     hTrigEtaPhi.Scale(1./normalize)
-    
+
+
     # loop over events in the chain
     for ievt in range(nentries):
+        if ievt%10000==0: print("2nd loop: "+str(ievt))
         chain.GetEntry(ievt)
 
         # if we're re-weighting, find the index of the trigger, and get the weight for the hits
         hitweight=1.0
         if args.reweight:
-            trigIndex = find_lead_trigger_index(chain.nTrigs, chain.trigPt, chain.trigNames, args.hltpath)
+            trigIndex = find_lead_trigger_index(nTrigs[0], trigPt, trigNames, args.hltpath)
             if trigIndex<0: continue # skip the event, if the trigger can't be found
-            xbin=hTrigEtaPhi.GetXaxis().FindBin(chain.trigEta[trigIndex])
-            ybin=hTrigEtaPhi.GetYaxis().FindBin(chain.trigPhi[trigIndex])
+            xbin=hTrigEtaPhi.GetXaxis().FindBin(trigEta[trigIndex])
+            ybin=hTrigEtaPhi.GetYaxis().FindBin(trigPhi[trigIndex])
             value = hTrigEtaPhi.GetBinContent(xbin,ybin)
             if value==0: hitweight==0
             else:        hitweight=1./value
                              
         # loop over the hits
-        for i in range(chain.nHits):
+        for i in range(nHits[0]):
             
             # get the histogram and fill it
-            mod = chain.event % common.modulus
-            hist = get_hist_from_dict(hdict, chain.subdet[i], chain.ieta[i], chain.iphi[i], chain.depth[i], mod)
-            hist.Fill(chain.hitEnergy[i], hitweight)
+            mod = event[0] % common.modulus
+            hist = get_hist_from_dict(hdict, subdet[i], ieta[i], iphi[i], depth[i], mod)
+            hist.Fill(hitEnergy[i], hitweight)
 
+        
     # write all of the histograms to a file
     rootfileout.cd()
     if args.reweight: hTrigEtaPhi.Write()
