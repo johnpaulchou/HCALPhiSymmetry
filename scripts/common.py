@@ -11,7 +11,7 @@ minabsietas = [ 1, 16, 29]
 maxabsietas = [ 16, 29, 41]
 miniphi = 1
 maxiphi = 72
-modulus = 2
+modulus = 4
 
 
 ### returns a name for a subdetector based on the subdet number

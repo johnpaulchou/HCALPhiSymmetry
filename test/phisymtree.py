@@ -34,7 +34,7 @@ process.phisym = cms.EDAnalyzer("phiSymTree",
                                 )
 
 process.TFileService = cms.Service("TFileService",
-    fileName = cms.string('phisymtree.root'),
+    fileName = cms.string('/cms/johnpaul/HCAL/phisymtree.root'),
 )
 
 process.p = cms.Path(
@@ -43,6 +43,7 @@ process.p = cms.Path(
 
 
 files = glob.glob(os.path.join('/cms/bphys/HCAL/', "*.root"))
-
 process.source = cms.Source ("PoolSource", fileNames = cms.untracked.vstring("file:" + f for f in files))
+
+#process.source = cms.Source ("PoolSource", fileNames = cms.untracked.vstring('file:/cms/bphys/HCAL/HcalCalIterativePhiSym_job00493.root'))
 
