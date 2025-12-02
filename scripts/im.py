@@ -11,7 +11,7 @@ import numpy as np
 import common
 from scipy.stats import bootstrap
 
-sys.stdout = open("output.txt", "w")
+#sys.stdout = open("output.txt", "w")
 
 doEFlow = True # if true, use the mean*integral, not the integral
 
@@ -114,7 +114,7 @@ def main():
                             (minthresh,maxthresh)=common.thresholds(subdet,ieta)
                             h.SetAxisRange(minthresh,maxthresh)
                             if h.Integral()<=0 or h.GetRMS()<=0:
-                                print("Histogram Warning: "+str(subdet)+", ieta="+str(ieta)+", iphi="+str(iphi)+", depth="+str(depth)+", mod="+str(mod)+" is empty or has some issues",file=sys.stderr)
+                                outputerrfile.write("Histogram Warning: "+str(subdet)+", ieta="+str(ieta)+", iphi="+str(iphi)+", depth="+str(depth)+", mod="+str(mod)+" is empty or has some issues\n")
                                 h=None
 
                         # store it in the list, even if it is bad
@@ -137,7 +137,7 @@ def main():
                     # compute the average across all iphi ranges
                     meanE=meanE/nmeanE
                     if meanE<=0:
-                        print("all histograms empty for subdet="+subdet+", ieta="+str(ieta)+", depth="+str(depth)+", mod="+str(mod),file=sys.stderr)
+                        outputerrfile.write("all histograms empty for subdet="+subdet+", ieta="+str(ieta)+", depth="+str(depth)+", mod="+str(mod)+"\n")
                         continue
 
                     # loop over iphi a second time
@@ -161,7 +161,7 @@ def main():
                         mini = minimizeFunc(spline, meanE, minthresh, maxthresh)
                         corr=mini.minimize()
                         if corr<0:
-                            print("Convergence Failure Warning for: "+subdet+", ieta="+str(ieta)+", iphi="+str(iphi)+", depth="+str(depth)+", mod="+str(mod),file=sys.stderr)
+                            outputerrfile.write("Convergence Failure Warning for: "+subdet+", ieta="+str(ieta)+", iphi="+str(iphi)+", depth="+str(depth)+", mod="+str(mod)+"\n")
                         corrs[iphi-common.miniphi][mod]=corr
 
                         # end loop over iphi
@@ -173,16 +173,8 @@ def main():
                     # compute average and stddev of the correction over moduli
                     data = np.array(corrs[iphi-common.miniphi])
                     data = data[data >= 0] # eliminate negative data values
-                    #print(iphi)
-                    #print(data)
-                    if len(data)<common.modulus:
-                        outputerrfile.write("Could not find all moduli for " +str(ieta)+" "+str(iphi)+" "+str(depth)+ " "+str(common.subdetnums[subdetindex])+ " Length of data: "+str(len(data))+"\n")
-                        #corrStr = -3
-                        #corrErrStr = -0.00001
-                        #outputerrfile.write(str(subdetnums[subdetindex])+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+"\n")
-                        continue
+                    if len(data)<common.modulus: continue # skip if we didn't have enough data
                     avgcorr=np.mean(data)
-#                    stddevcorr=np.std(data, ddof=1, mean=avgcorr)/len(data)**.5
                     d=(data,)
                     stddevcorr=bootstrap(d, np.mean, confidence_level=0.68,n_resamples=999).standard_error
 

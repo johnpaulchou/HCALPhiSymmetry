@@ -129,7 +129,8 @@ def main():
         # create TH2D histogram for the trigger eta-phi
         histtitle="leading trigger object location"
         if args.hltpath is not None: histtitle += " for path="+args.hltpath
-        hTrigEtaPhi = ROOT.TH2D('hTrigEtaPhi', histtitle, 15, -2.6, 2.6, 50, -3.1415, 3.1415)
+        hTrigEtaPhi = ROOT.TH2D('hTrigEtaPhi', histtitle, 15, -2.6, 2.6, 50, -3.1416, 3.1416)
+        hWeightEtaPhi = ROOT.TH2D('hWeightEtaPhi', histtitle, 15, -2.6, 2.6, 50, -3.1416, 3.1416)
 
         # loop over events in the chain
         for ievt in range(nentries):
@@ -141,10 +142,14 @@ def main():
             if trigIndex<0: continue
             hTrigEtaPhi.Fill(trigEta[trigIndex], trigPhi[trigIndex])
 
-
-        # normalize the 2d histogram
-        normalize=hTrigEtaPhi.GetEntries()/hTrigEtaPhi.GetNbinsX()/hTrigEtaPhi.GetNbinsY()
-        hTrigEtaPhi.Scale(1./normalize)
+        # produce the weight histogram from the trigger map by normalizing the 2d histogram by eta slice
+        for i in range(1,hTrigEtaPhi.GetNbinsX()+1):
+            sum=0.
+            for j in range(1,hTrigEtaPhi.GetNbinsY()+1):
+                sum += 1./hTrigEtaPhi.GetBinContent(i,j)
+            for j in range(1,hTrigEtaPhi.GetNbinsY()+1):
+                val = 1./hTrigEtaPhi.GetBinContent(i,j)
+                hWeightEtaPhi.SetBinContent(i,j,val/sum*hTrigEtaPhi.GetNbinsY())
 
 
     # loop over events in the chain
@@ -157,11 +162,12 @@ def main():
         if args.reweight:
             trigIndex = find_lead_trigger_index(nTrigs[0], trigPt, trigNames, args.hltpath)
             if trigIndex<0: continue # skip the event, if the trigger can't be found
-            xbin=hTrigEtaPhi.GetXaxis().FindBin(trigEta[trigIndex])
-            ybin=hTrigEtaPhi.GetYaxis().FindBin(trigPhi[trigIndex])
-            value = hTrigEtaPhi.GetBinContent(xbin,ybin)
-            if value==0: hitweight==0
-            else:        hitweight=1./value
+
+            # skip events for which the trigger shows up in the underflow/overflow
+            xbin=hWeightEtaPhi.GetXaxis().FindBin(trigEta[trigIndex])
+            ybin=hWeightEtaPhi.GetYaxis().FindBin(trigPhi[trigIndex])
+            if xbin<=0 or xbin>=hWeightEtaPhi.GetNbinsX()+1 or ybin<=0 or ybin>=hWeightEtaPhi.GetNbinsY()+1: continue
+            hitweight = hWeightEtaPhi.GetBinContent(xbin,ybin)
                              
         # loop over the hits
         for i in range(nHits[0]):
@@ -170,11 +176,12 @@ def main():
             mod = event[0] % common.modulus
             hist = get_hist_from_dict(hdict, subdet[i], ieta[i], iphi[i], depth[i], mod)
             hist.Fill(hitEnergy[i], hitweight)
-
         
     # write all of the histograms to a file
     rootfileout.cd()
-    if args.reweight: hTrigEtaPhi.Write()
+    if args.reweight:
+        hTrigEtaPhi.Write()
+        hWeightEtaPhi.Write()
     write_all_histograms(hdict, rootfileout)
     rootfileout.Close()
 
