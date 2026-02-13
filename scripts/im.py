@@ -10,7 +10,7 @@ import scipy.integrate as integrate
 import numpy as np
 import common
 from scipy.stats import bootstrap
-
+from ctypes import *
 #sys.stdout = open("output.txt", "w")
 
 doEFlow = True # if true, use the mean*integral, not the integral
@@ -30,14 +30,54 @@ class minimizeFunc:
     def splineMeanF(self, x, corr):
         return x*corr*self.spline.Eval(x)
 
+    def splineIntegrator(self,x0,x,y,b,c,d,e,f):
+        return f/6*(x-x0)**6+e/5*(x-x0)**5+d/4*(x-x0)**4+c/3*(x-x0)**3+b/2*(x-x0)**2+y*(x-x0)
+    
+    def splineMeanIntegrator(self,corr,x0,x,y,b,c,d,e,f):
+        return (f/7*corr*(x-x0)**7+f/6*corr*x0*(x-x0)**6+e/6*corr*(x-x0)**6+e/5*x0*corr*(x-x0)**5
+                +d/5*corr*(x-x0)**5+d/4*x0*corr*(x-x0)**4+c/4*corr*(x-x0)**4+c/3*x0*corr*(x-x0)**3
+                +b/3*corr*(x-x0)**3+b/2*x0*corr*(x-x0)**2+y/2*corr*(x**2-x0**2))
+
     def minimizer(self,corr):
         # integrate from the new bounds
-        splineIntegral = integrate.quad(self.splineF,self.lo/corr[0],self.hi/corr[0])
-        splineMean = integrate.quad(self.splineMeanF,self.lo/corr[0],self.hi/corr[0],args=(corr[0]))
+        #numerical integration (legacy)
+        #splineIntegral = integrate.quad(self.splineF,self.lo/corr[0],self.hi/corr[0],limit=1000)
+        #splineMean = integrate.quad(self.splineMeanF,self.lo/corr[0],self.hi/corr[0],args=(corr[0]),limit=1000)
+        
+        #analytical integration (new)
+        splineMean2= 0.0 
+        splineIntegral2 = 0.0
+        
+        for i in range(self.spline.GetNp()-1):
+            x0val=c_double(0.0)
+            y=c_double(0.0)
+            b=c_double(0.0)
+            c=c_double(0.0)
+            d=c_double(0.0)
+            e=c_double(0.0)
+            f=c_double(0.0)
+            
+            self.spline.GetCoeff(i,x0val,y,b,c,d,e,f)
+            if(x0val.value>(self.hi/corr[0])):break
+            x1val=c_double(0.0)
+            y1=c_double(0.0)
+            self.spline.GetKnot(i+1,x1val,y1)
+            if(x1val.value<(self.lo/corr[0])):continue
 
+            x1 = min(x1val.value,self.hi/corr[0])
+            
+            if(x0val.value<self.lo/corr[0]):
+                splineIntegral2+=(self.splineIntegrator(x0val.value,x1,y.value,b.value,c.value,d.value,e.value,f.value)
+                                  -self.splineIntegrator(x0val.value,self.lo/corr[0],y.value,b.value,c.value,d.value,e.value,f.value))
+                splineMean2+=(self.splineMeanIntegrator(corr[0],x0val.value,x1,y.value,b.value,c.value,d.value,e.value,f.value)
+                              -self.splineMeanIntegrator(corr[0],x0val.value,self.lo/corr[0],y.value,b.value,c.value,d.value,e.value,f.value))
+            else: 
+                splineIntegral2+=self.splineIntegrator(x0val.value,x1,y.value,b.value,c.value,d.value,e.value,f.value)
+                splineMean2+=self.splineMeanIntegrator(corr[0],x0val.value,x1,y.value,b.value,c.value,d.value,e.value,f.value)
+        
         # compute the mean and return the difference with the target mean squared
-        if doEFlow: return (splineMean[0] - self.mean)**2
-        else: return (splineMean[0]/splineIntegral[0] - self.mean)**2
+        if doEFlow: return (splineMean2 - self.mean)**2
+        else: return (splineMean2/splineIntegral2 - self.mean)**2
         #else: return (splineIntegral[0] - self.mean)**2 #alt method
 
     def minimize(self):
