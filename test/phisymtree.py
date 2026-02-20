@@ -9,7 +9,7 @@ process.maxEvents = cms.untracked.PSet(
 )
 
 process.load("FWCore.MessageLogger.MessageLogger_cfi")
-process.MessageLogger.cerr.FwkReport.reportEvery = 100
+process.MessageLogger.cerr.FwkReport.reportEvery = 1000
 process.MessageLogger.cerr.default.limit = 100
 
 process.load('Configuration.StandardSequences.Services_cff')
@@ -42,7 +42,7 @@ process.p = cms.Path(
     )
 
 
-files = glob.glob(os.path.join('/cms/bphys/HCAL/', "*.root"))
+files = glob.glob(os.path.join('/cms/bphys/HCAL_final/', "*.root"))
 process.source = cms.Source ("PoolSource", fileNames = cms.untracked.vstring("file:" + f for f in files))
 
 #process.source = cms.Source ("PoolSource", fileNames = cms.untracked.vstring('file:/cms/bphys/HCAL/HcalCalIterativePhiSym_job00493.root'))
