@@ -108,10 +108,12 @@ def main():
         filestr = filestr + "_d"+str(args.depth)
     outputtxtfilename = "corrs_"+filestr+".txt"
     outputerrfilename = "err_"+filestr+".txt"
+    outputeflowfilename = "eflow_"+filestr+".txt"
 
     # open files
     outputtxtfile = open(outputtxtfilename, "w")
     outputerrfile = open(outputerrfilename, "w")
+    outputeflowfile = open(outputeflowfilename,"w")
     inputhistfile = ROOT.TFile(inputfilename, "READ")
     if not inputhistfile or inputhistfile.IsZombie():
         print("Error: Unable to open file "+inputfilename+".")
@@ -175,7 +177,8 @@ def main():
                     if not foundHist: continue
 
                     # compute the average across all iphi ranges
-                    meanE=meanE/nmeanE
+                    meanE=meanE/nmeanE 
+                    outputeflowfile.write(str(subdet)+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+" "+str(meanE)+"\n")
                     if meanE<=0:
                         outputerrfile.write("all histograms empty for subdet="+subdet+", ieta="+str(ieta)+", depth="+str(depth)+", mod="+str(mod)+"\n")
                         continue
