@@ -25,16 +25,11 @@ public:
     auto const& detIds =
         caloGeometry.getValidDetIds(DetId::Hcal, HcalForward);
 
-    std::cout << "Found " << detIds.size() << " HF cells\n";
-    std::cout << std::fixed << std::setprecision(6);
+    std::cout << "{\n";
+    std::cout << "  \"hf_cells\": [\n";
 
-    std::cout
-        << "ieta iphi depth"
-        << " eta phi"
-        << " frontArea_cm2 backArea_cm2 avgArea_cm2"
-        << " deta dphi"
-        << "\n";
-
+    bool first = true;
+    
     for (auto const& id : detIds) {
       HcalDetId hid(id);
 
@@ -50,19 +45,32 @@ public:
       double const backArea  = quadArea(cell->getCorners(), 4, 5, 6, 7);
       double const avgArea   = 0.5 * (frontArea + backArea);
 
-      std::cout
-          << std::setw(4) << hid.ieta()
-          << " " << std::setw(4) << hid.iphi()
-          << " " << std::setw(2) << hid.depth()
-          << " " << std::setw(12) << pos.eta()
-          << " " << std::setw(12) << pos.phi()
-          << " " << std::setw(14) << frontArea
-          << " " << std::setw(14) << backArea
-          << " " << std::setw(14) << avgArea
-          << " " << std::setw(10) << cell->etaSpan()
-          << " " << std::setw(10) << cell->phiSpan()
-          << "\n";
+      if (!first) {
+        std::cout << ",\n";
+      }
+      first = false;
+
+      std::cout << "    {\n";
+      std::cout << "      \"rawId\": " << id.rawId() << ",\n";
+      std::cout << "      \"ieta\": " << hid.ieta() << ",\n";
+      std::cout << "      \"iphi\": " << hid.iphi() << ",\n";
+      std::cout << "      \"depth\": " << hid.depth() << ",\n";
+      std::cout << "      \"eta\": " << pos.eta() << ",\n";
+      std::cout << "      \"phi\": " << pos.phi() << ",\n";
+      std::cout << "      \"x_cm\": " << pos.x() << ",\n";
+      std::cout << "      \"y_cm\": " << pos.y() << ",\n";
+      std::cout << "      \"z_cm\": " << pos.z() << ",\n";
+      std::cout << "      \"frontArea_cm2\": " << frontArea << ",\n";
+      std::cout << "      \"backArea_cm2\": " << backArea << ",\n";
+      std::cout << "      \"avgArea_cm2\": " << avgArea << ",\n";
+      std::cout << "      \"etaSpan\": " << cell->etaSpan() << ",\n";
+      std::cout << "      \"phiSpan\": " << cell->phiSpan() << "\n";
+      std::cout << "    }";
     }
+
+    std::cout << "\n";
+    std::cout << "  ]\n";
+    std::cout << "}\n";
   }
 
 private:

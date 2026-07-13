@@ -17,7 +17,8 @@
 #include "DataFormats/HcalRecHit/interface/HcalRecHitCollections.h"
 #include "DataFormats/Common/interface/TriggerResults.h"
 #include "DataFormats/HLTReco/interface/TriggerEvent.h"
-
+#include "DataFormats/VertexReco/interface/Vertex.h"
+#include "DataFormats/VertexReco/interface/VertexFwd.h"
 
 #include <fnmatch.h>
 
@@ -45,6 +46,8 @@ private:
   int ieta_[MAXNHITS], iphi_[MAXNHITS], depth_[MAXNHITS], subdet_[MAXNHITS];
   int nTrigs_;
   float trigPt_[MAXNTRIGS], trigEta_[MAXNTRIGS], trigPhi_[MAXNTRIGS];
+  float pvx_, pvy_, pvz_;
+
   std::vector<std::string> trigNames_;
   
   // parameters
@@ -59,7 +62,8 @@ private:
   edm::EDGetTokenT<trigger::TriggerEvent> triggerSummaryToken_;
   edm::ESGetToken<HcalRespCorrs, HcalRespCorrsRcd> hcalRespCorrToken_;
   edm::ESGetToken<HcalTopology, HcalRecNumberingRecord> hcalTopologyToken_;
-
+  edm::EDGetTokenT<reco::VertexCollection> vertexToken_;
+  
   // other stuff
   std::map<std::string, int> triggerMap_;
   HLTConfigProvider hltConfig_;
@@ -81,7 +85,7 @@ phiSymTree::phiSymTree(const edm::ParameterSet& iConfig) {
   triggerSummaryToken_ = consumes<trigger::TriggerEvent>(iConfig.getParameter<edm::InputTag>("triggerSummary"));
   hcalRespCorrToken_ = esConsumes<HcalRespCorrs, HcalRespCorrsRcd>();
   hcalTopologyToken_ = esConsumes<HcalTopology, HcalRecNumberingRecord>();
-						       
+  vertexToken_ = consumes<reco::VertexCollection>(iConfig.getParameter<edm::InputTag>("vertices"));						       
 
   undoRespCorr_ = iConfig.getParameter<bool>("undoRespCorr");
   HBHEthreshold_ = iConfig.getParameter<double>("HBHEthreshold");
@@ -136,6 +140,9 @@ void phiSymTree::beginJob() {
   tree_->Branch("trigEta", trigEta_, "trigEta[nTrigs]/F");
   tree_->Branch("trigPhi", trigPhi_, "trigPhi[nTrigs]/F");
   tree_->Branch("trigNames", &trigNames_);
+  tree_->Branch("pvx", &pvx_, "pvx/F");
+  tree_->Branch("pvy", &pvy_, "pvy/F");
+  tree_->Branch("pvz", &pvz_, "pvz/F");
 }
 
 ////////////////////////////////////////////////////////
@@ -148,12 +155,13 @@ void phiSymTree::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup
   edm::Handle<HFRecHitCollection> hfRecHits;
   edm::Handle<edm::TriggerResults> triggerResults;
   edm::Handle<trigger::TriggerEvent> triggerSummary;
-
+  edm::Handle<reco::VertexCollection> vertices;
 
   iEvent.getByToken(hbheRecHitToken_, hbheRecHits);
   iEvent.getByToken(hfRecHitToken_, hfRecHits);
   iEvent.getByToken(triggerResultsToken_, triggerResults);
   iEvent.getByToken(triggerSummaryToken_, triggerSummary);
+  iEvent.getByToken(vertexToken_, vertices);
  
   if (!hbheRecHits.isValid()) {
     edm::LogWarning("phiSymTree") << "HBHERecHitCollection not found!";
@@ -234,6 +242,27 @@ void phiSymTree::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup
       nTrigs_++;
     }
   }
+
+  // get the PV variables
+  pvx_ = -999.;
+  pvy_ = -999.;
+  pvz_ = -999.;
+
+  // assumes that the leading vertex the highest ST^2
+  if (vertices.isValid()) {
+    for (const auto& vtx : *vertices) {
+      if (vtx.isFake()) continue;
+      if (vtx.ndof() <= 4) continue;
+      if (std::abs(vtx.z()) > 24.0) continue;
+      if (vtx.position().Rho() > 2.0) continue;
+
+      pvx_ = vtx.x();
+      pvy_ = vtx.y();
+      pvz_ = vtx.z();
+      break;
+    }
+  }
+
   
   
   // start filling the other tree variables

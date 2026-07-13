@@ -6,7 +6,9 @@ import argparse
 import fnmatch
 import array
 from collections import defaultdict
-
+from scipy.interpolate import LinearNDInterpolator, NearestNDInterpolator
+import numpy as np
+import json
 
 ### creates a nested dictionary to manage the histograms
 def nested_dict():
@@ -71,11 +73,28 @@ def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("inputfns", nargs='+', help="name(s) of .root file(s) to be processed")
     parser.add_argument("-o", "--outputfn", default="hists.root", help="name of the .root file that stores the histograms")
-    parser.add_argument("--no-reweight", action='store_false', dest='reweight', help='Disable reweighting (i.e. the default is to _perform_ reweighting)')
+    parser.add_argument("--no-reweight", action='store_false', dest='reweight', help='Disable trigger reweighting')
     parser.add_argument("--force-hlt-path", dest='hltpath', help='Name of the HLT path to reweigh against. If not set, the leading trigger object is used from any path. If you want to do matching, make sure to put \' \' around the pattern, e.g. \'electron*_v*\'.')
+    parser.add_argument("--no-pvcorr", action='store_false', dest='pvcorr', help='Disable the HF primary vertex correction')
+    parser.add_argument("--hf-geometry-json", default="hf_geometry.json", dest="hfgeofile", help=".json file produced by the \"cmsRun printHF.py\" command")
     args=parser.parse_args()
 
+    # load the HF geometry JSON file
+    if args.pvcorr:
+        with open(args.hfgeofile) as f:
+            hfdata = json.load(f)
 
+        # create an empty dictionary from (ieta,iphi,depth)-->(eta,phi,area,energy)
+        emptyhfdict = {}
+        for cell in hfdata["hf_cells"]:
+            ieta = cell["ieta"]
+            iphi = cell["iphi"]
+            depth = cell["depth"]
+            x = cell["x_cm"]
+            y = cell["y_cm"]
+            area = cell["etaSpan"]*cell["phiSpan"]
+            emptyhfdict[ieta, iphi, depth]=[x,y,area,0.0]
+            
     # create histogram dictionary
     hdict = nested_dict()
 
@@ -103,6 +122,9 @@ def main():
     trigEta    = array.array("f", [0]*MAXNTRIGS)
     trigPhi    = array.array("f", [0]*MAXNTRIGS)
     trigNames = ROOT.std.vector("string")()
+    pvx = array.array("f", [0])
+    pvy = array.array("f", [0])
+    pvz = array.array("f", [0])
 
     chain.SetBranchAddress("run",   run)
     chain.SetBranchAddress("lumi",  lumi)
@@ -118,7 +140,9 @@ def main():
     chain.SetBranchAddress("trigEta", trigEta)
     chain.SetBranchAddress("trigPhi", trigPhi)
     chain.SetBranchAddress("trigNames", trigNames)
-
+    chain.SetBranchAddress("pvx", pvx)
+    chain.SetBranchAddress("pvy", pvy)
+    chain.SetBranchAddress("pvz", pvz)
 
     # create an output file
     rootfileout = ROOT.TFile(args.outputfn, "RECREATE")
@@ -168,14 +192,79 @@ def main():
             ybin=hWeightEtaPhi.GetYaxis().FindBin(trigPhi[trigIndex])
             if xbin<=0 or xbin>=hWeightEtaPhi.GetNbinsX()+1 or ybin<=0 or ybin>=hWeightEtaPhi.GetNbinsY()+1: continue
             hitweight = hWeightEtaPhi.GetBinContent(xbin,ybin)
-                             
+
+
+        # perform the primary vertex correction for the HF hits
+        if args.pvcorr:
+
+            # check that there is a valid PV (skip the event if not)
+            if pvx[0]<-900. or pvy[0]<-900.: continue
+
+            # create a new hf dictionary that is a copy of the empty one
+            hfdict = {key: value.copy() for key, value in emptyhfdict.items()}
+
+            # loop over just the HF hits and fill the dictionary
+            for i in range(nHits[0]):
+                if subdet[i]!=4: continue
+                key = (ieta[i], iphi[i], depth[i])
+                hfdict[key][3] = hitEnergy[i]/hfdict[key][2]
+
+            # create 4 interpolators: depth 1/2 times ieta +/- side
+            interp_inputs = {
+                (1, +1): [[], []],
+                (1, -1): [[], []],
+                (2, +1): [[], []],
+                (2, -1): [[], []],
+            }
+
+            # fill the interpolator inputs
+            for key, vals in hfdict.items():
+                cell_ieta, cell_iphi, cell_depth = key
+                x, y, area, energydensity = vals
+                zside = +1 if cell_ieta > 0 else -1
+
+                interp_key = (cell_depth, zside)
+                if interp_key not in interp_inputs: continue
+
+                interp_inputs[interp_key][0].append((x, y))
+                interp_inputs[interp_key][1].append(energydensity)
+
+            # create the interpolators
+            hf_linear_interps = {}
+            hf_nearest_interps = {}
+            for interp_key, (points, values) in interp_inputs.items():
+                hf_linear_interps[interp_key] = LinearNDInterpolator(points, values)
+                hf_nearest_interps[interp_key] = NearestNDInterpolator(points, values)
+
+            # fill the histograms
+            for key, vals in hfdict.items():
+                cell_ieta, cell_iphi, cell_depth = key
+                x, y, area, energydensity = vals
+                zside = +1 if cell_ieta > 0 else -1
+
+                interp_key = (cell_depth, zside)
+                if interp_key not in interp_inputs: continue
+
+                newdensity = hf_linear_interps[interp_key](x + pvx[0], y + pvy[0])
+                if np.isnan(newdensity):
+                    newdensity = hf_nearest_interps[interp_key](x + pvx[0], y + pvy[0])
+                newenergy = float(newdensity) * area
+                oldenergy = energydensity * area
+
+                # get the hist
+                mod = event[0] % common.modulus
+                hist = get_hist_from_dict(hdict, 4, cell_ieta, cell_iphi, cell_depth, mod)
+                hist.Fill(newenergy, hitweight)
+#                print("ieta="+str(cell_ieta)+"; iphi="+str(cell_iphi)+"; depth="+str(cell_depth)+"; old energy="+str(oldenergy)+"; new energy="+str(newenergy))
+            
         # loop over the hits
         for i in range(nHits[0]):
             
-            # get the histogram and fill it
-            mod = event[0] % common.modulus
-            hist = get_hist_from_dict(hdict, subdet[i], ieta[i], iphi[i], depth[i], mod)
-            hist.Fill(hitEnergy[i], hitweight)
+            # get the histogram and fill it (skip the HF if we are correcting for the PV location)
+            if not args.pvcorr or subdet[i]!=4:
+                mod = event[0] % common.modulus
+                hist = get_hist_from_dict(hdict, subdet[i], ieta[i], iphi[i], depth[i], mod)
+                hist.Fill(hitEnergy[i], hitweight)
         
     # write all of the histograms to a file
     rootfileout.cd()

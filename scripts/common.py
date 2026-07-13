@@ -1,6 +1,10 @@
 import ROOT
 import itertools
 import sys
+import array as ar
+import scipy.optimize as spo
+import scipy.integrate as integrate
+from ctypes import *
 
 # this is code and parameters common to all of the scripts
 
@@ -131,3 +135,88 @@ def testGoodChannel(inputfilename):
                         elif h is not None and val==False:
                             sys.stderr.write("Hist found for "+subdetName(subdetnum)+" ieta="+str(ieta)+" iphi="+str(iphi)+" depth="+str(depth)+" mod="+str(mod)+"\n")
 ### end testGoodChannel()
+
+
+
+# defines the function to minimize
+class minimizeFunc:
+    def __init__(self, spline, target, lo, hi):
+        self.spline = spline
+        self.target = target
+        self.lo = lo
+        self.hi = hi
+
+    def splineF(self, x):
+        return self.spline.Eval(x)
+
+    def splineMeanF(self, x, corr):
+        return x*corr*self.spline.Eval(x)
+
+    def minimizer(self,corr):
+        # integrate from the new bounds
+        splineMean = integrate.quad(self.splineMeanF,self.lo/corr[0],self.hi/corr[0],args=(corr[0]),limit=1000)
+        
+        # compute the mean and return the difference with the target mean squared
+        return (splineMean[0] - self.target)**2
+
+    def minimize(self):
+        result = spo.minimize(self.minimizer, 1.0, bounds=[(0.10,3.)],tol=1e-4,method="Nelder-Mead")
+        if result.success: return result.x[0]
+        else: return -1.
+
+
+
+### compute the target energy flow
+def computeTargetEflow(inputhistfile, subdet, ieta, depth):
+
+    # get the thresholds
+    (minthresh,maxthresh)=thresholds(subdet,ieta)
+
+    total=0.
+    num=0
+    
+    # loop over iphi
+    for iphi in range(miniphi, maxiphi+1):
+
+        # loop over moduli
+        for mod in range(modulus):
+
+            # get the histogram
+            h=getHist(inputhistfile, subdet, ieta, iphi, depth, mod)
+            if h is None: continue
+
+            # compute the energy flow
+            h.SetAxisRange(minthresh,maxthresh)
+            if h.Integral()<=0 or h.GetRMS()<=0: continue            
+            total+=h.GetMean()*h.Integral("width") # average energy*integral
+            num+=1
+
+    if num>0: return total/num
+    else:     return -1.
+
+
+
+### compute the correction
+def computeCorrection(inputhistfile, subdet, ieta, iphi, depth, mod, target):
+
+    # get the histogram
+    h=getHist(inputhistfile, subdet, ieta, iphi, depth, mod)
+    if h is None: return -1.
+
+    # set the thresholds
+    (minthresh,maxthresh)=thresholds(subdet,ieta)
+    h.SetAxisRange(minthresh,maxthresh)
+
+    # create a spline
+    xcorr = [0.0]*h.GetNbinsX()
+    ycorr = [0.0]*h.GetNbinsX()
+    for k in range(1, h.GetNbinsX()+1):
+        xcorr[k-1]=h.GetBinCenter(k)
+        ycorr[k-1]=h.GetBinContent(k)
+    spline = ROOT.TSpline5("spline"+str(subdet)+str(ieta)+str(iphi)+str(depth),ar.array('d',xcorr),ar.array('d',ycorr),len(xcorr),"")
+
+    # compute the correction and store it
+    mini = minimizeFunc(spline, target, minthresh, maxthresh)
+    corr=mini.minimize()
+
+    return corr

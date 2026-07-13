@@ -28,13 +28,18 @@ def main():
                 continue
             
             subdet, ieta, iphi, depth, corr, err = line.split()
-            
+
+            subdet = int(subdet)
             ieta = int(ieta)
             iphi = int(iphi)
             depth = int(depth)
             corr = float(corr)
             err = float(err)
 
+            # offset the HE bins
+            if subdet==2 and abs(ieta)==29:
+                iphi+=1
+            
             hist=hists[depth-1]
             
             # Find bin numbers explicitly
