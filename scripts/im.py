@@ -32,10 +32,12 @@ def main():
         filestr = filestr + "_d"+str(args.depth)
     outputtxtfilename = "corrs_"+filestr+".txt"
     outputerrfilename = "err_"+filestr+".txt"
+    outputeflowfilename = "eflow_"+filestr+".txt"
 
     # open files
     outputtxtfile = open(outputtxtfilename, "w")
     outputerrfile = open(outputerrfilename, "w")
+    outputeflowfile = open(outputeflowfilename,"w")
     inputhistfile = ROOT.TFile(inputfilename, "READ")
     if not inputhistfile or inputhistfile.IsZombie():
         print("Error: Unable to open file "+inputfilename+".")
@@ -65,7 +67,83 @@ def main():
                 if target<0: continue
                 targets[subdet, ieta, depth]=target
 
+<<<<<<< HEAD
                 # loop over iphi
+=======
+                # loop over moduli
+                for mod in range(common.modulus):
+
+                    # loop over iphi the first time
+                    foundHist=False
+                    meanE=0.
+                    nmeanE=0
+                    hists = [None]*(common.maxiphi-common.miniphi+1) # store histograms so that you don't have to read it twice
+                    for iphi in range(common.miniphi, common.maxiphi+1):
+
+                        # get the histogram and compute stuff
+                        h=common.getHist(inputhistfile, subdet, ieta, iphi, depth, mod)
+
+                        # if the histogram has issues, change it to "None" to be skipped later, and print a warning
+                        if h is not None:
+                            (minthresh,maxthresh)=common.thresholds(subdet,ieta)
+                            h.SetAxisRange(minthresh,maxthresh)
+                            if h.Integral()<=0 or h.GetRMS()<=0:
+                                outputerrfile.write("Histogram Warning: "+str(subdet)+", ieta="+str(ieta)+", iphi="+str(iphi)+", depth="+str(depth)+", mod="+str(mod)+" is empty or has some issues\n")
+                                h=None
+
+                        # store it in the list, even if it is bad
+                        hists[iphi-common.miniphi]=h
+
+                        # skip bad histograms
+                        if h is None: continue
+                        foundHist=True
+                        (minthresh,maxthresh)=common.thresholds(subdet,ieta)
+                        h.SetAxisRange(minthresh,maxthresh)
+                        if doEFlow: meanE=meanE+h.GetMean()*h.Integral("width") # average energy*integral (normalized to bin size)
+                        else:       meanE=meanE+h.GetMean()
+                        #else: meanE=meanE+h.Integral("width") #alt method
+                        nmeanE=nmeanE+1
+                        # end first iphi loop
+
+                    # skip this if no iphi slice was found
+                    if not foundHist: continue
+
+                    # compute the average across all iphi ranges
+                    meanE=meanE/nmeanE 
+                    outputeflowfile.write(str(subdet)+" "+str(ieta)+" "+str(iphi)+" "+str(depth)+" "+str(meanE)+"\n")
+                    if meanE<=0:
+                        outputerrfile.write("all histograms empty for subdet="+subdet+", ieta="+str(ieta)+", depth="+str(depth)+", mod="+str(mod)+"\n")
+                        continue
+
+                    # loop over iphi a second time
+                    for iphi in range(common.miniphi, common.maxiphi+1):
+
+                        # get the histogram again
+                        h=hists[iphi-common.miniphi]
+                        if h is None: continue
+                        (minthresh,maxthresh)=common.thresholds(subdet,ieta)
+                        h.SetAxisRange(minthresh,maxthresh)
+
+                        # create a spline
+                        xcorr = [0.0]*h.GetNbinsX()
+                        ycorr = [0.0]*h.GetNbinsX()
+                        for k in range(1, h.GetNbinsX()+1):
+                            xcorr[k-1]=h.GetBinCenter(k)
+                            ycorr[k-1]=h.GetBinContent(k)
+                        spline = ROOT.TSpline5("spline"+str(subdet)+str(ieta)+str(iphi)+str(depth),ar.array('d',xcorr),ar.array('d',ycorr),len(xcorr),"",10,20)
+
+                        # compute the correction and store it
+                        mini = minimizeFunc(spline, meanE, minthresh, maxthresh)
+                        corr=mini.minimize()
+                        if corr<0:
+                            outputerrfile.write("Convergence Failure Warning for: "+subdet+", ieta="+str(ieta)+", iphi="+str(iphi)+", depth="+str(depth)+", mod="+str(mod)+"\n")
+                        corrs[iphi-common.miniphi][mod]=corr
+
+                        # end loop over iphi
+                    # end loop over moduli
+
+                # last loop over iphi
+>>>>>>> 860bd988a30b27bce887f380ef2d84b4988b44c2
                 for iphi in range(common.miniphi, common.maxiphi+1):
 
                     # loop over moduli and compute the correction
